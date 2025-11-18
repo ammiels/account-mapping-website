@@ -7,6 +7,10 @@ const state = {
   },
   charts: {},
   expandedChart: null,
+  pagination: {
+    currentPage: 1,
+    jobsPerPage: 50
+  }
 };
 
 const elements = {};
@@ -58,6 +62,10 @@ function cacheElements() {
   elements.saveAnalysisConfirm = document.getElementById("save-analysis-confirm");
   elements.saveAnalysisCancel = document.getElementById("save-analysis-cancel");
   elements.exportCsvBtn = document.getElementById("export-csv-btn");
+  elements.paginationContainer = document.getElementById("pagination-container");
+  elements.paginationInfo = document.getElementById("pagination-info");
+  elements.paginationPrev = document.getElementById("pagination-prev");
+  elements.paginationNext = document.getElementById("pagination-next");
 }
 
 function bindInteractions() {
@@ -120,6 +128,14 @@ function bindInteractions() {
 
   if (elements.exportCsvBtn) {
     elements.exportCsvBtn.addEventListener("click", exportToCSV);
+  }
+
+  if (elements.paginationPrev) {
+    elements.paginationPrev.addEventListener("click", () => goToPage(state.pagination.currentPage - 1));
+  }
+
+  if (elements.paginationNext) {
+    elements.paginationNext.addEventListener("click", () => goToPage(state.pagination.currentPage + 1));
   }
 }
 
@@ -489,6 +505,8 @@ function applyFilters() {
     return departmentMatch && locationMatch && seniorityMatch;
   });
 
+  // Reset to page 1 when filters change
+  state.pagination.currentPage = 1;
   renderData(filtered);
 }
 
@@ -503,9 +521,19 @@ function renderData(jobs) {
 function renderJobsTable(jobs) {
   if (!elements.tableBody) return;
 
+  // Get jobs per page from settings
+  const jobsPerPageSetting = typeof getSetting === 'function' ? getSetting('jobsPerPage') : 50;
+  state.pagination.jobsPerPage = jobsPerPageSetting === 'all' ? jobs.length : parseInt(jobsPerPageSetting);
+
+  // Calculate pagination
+  const totalPages = Math.ceil(jobs.length / state.pagination.jobsPerPage);
+  const startIndex = (state.pagination.currentPage - 1) * state.pagination.jobsPerPage;
+  const endIndex = startIndex + state.pagination.jobsPerPage;
+  const paginatedJobs = jobs.slice(startIndex, endIndex);
+
   elements.tableBody.innerHTML = "";
 
-  jobs.forEach((job) => {
+  paginatedJobs.forEach((job) => {
     const department = job.department || "Unassigned";
     const location = job.location || "Unspecified";
     const seniority = job.seniority || "Unspecified";
@@ -526,6 +554,64 @@ function renderJobsTable(jobs) {
       </tr>`
     );
   });
+
+  // Update pagination controls
+  updatePaginationControls(jobs.length, totalPages);
+}
+
+function updatePaginationControls(totalJobs, totalPages) {
+  if (!elements.paginationContainer) return;
+
+  // Show/hide pagination based on whether we need it
+  if (totalPages <= 1) {
+    elements.paginationContainer.style.display = 'none';
+    return;
+  }
+
+  elements.paginationContainer.style.display = 'flex';
+
+  // Update info text
+  const startIndex = (state.pagination.currentPage - 1) * state.pagination.jobsPerPage + 1;
+  const endIndex = Math.min(state.pagination.currentPage * state.pagination.jobsPerPage, totalJobs);
+  elements.paginationInfo.textContent = `Showing ${startIndex}-${endIndex} of ${totalJobs} jobs`;
+
+  // Update button states
+  elements.paginationPrev.disabled = state.pagination.currentPage === 1;
+  elements.paginationNext.disabled = state.pagination.currentPage === totalPages;
+}
+
+function goToPage(pageNumber) {
+  const filtered = state.jobs.filter((job) => {
+    const department = job.department || "Unassigned";
+    const location = job.location || "Unspecified";
+    const seniority = job.seniority || "Unspecified";
+
+    const departmentMatch =
+      state.filters.department === "all" ||
+      department === state.filters.department;
+    const locationMatch =
+      state.filters.location === "all" ||
+      location === state.filters.location;
+    const seniorityMatch =
+      state.filters.seniority === "all" ||
+      seniority === state.filters.seniority;
+
+    return departmentMatch && locationMatch && seniorityMatch;
+  });
+
+  const totalPages = Math.ceil(filtered.length / state.pagination.jobsPerPage);
+  
+  // Validate page number
+  if (pageNumber < 1 || pageNumber > totalPages) return;
+  
+  state.pagination.currentPage = pageNumber;
+  renderJobsTable(filtered);
+
+  // Scroll to top of table
+  const tablePanel = document.getElementById('table-panel');
+  if (tablePanel) {
+    tablePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 }
 
 function escapeHtml(value) {
@@ -769,9 +855,6 @@ function exportToCSV() {
     case 'excel':
       exportToExcel();
       break;
-    case 'pdf':
-      exportToPDF();
-      break;
     case 'csv':
     default:
       exportToCSVFormat();
@@ -780,6 +863,16 @@ function exportToCSV() {
 }
 
 function exportToCSVFormat() {
+  let csvContent = '';
+  
+  // Add AI summary if enabled
+  const includeAISummary = typeof getSetting === 'function' ? getSetting('includeAISummary') : false;
+  if (includeAISummary && elements.summaryText && elements.summaryText.textContent) {
+    csvContent += '"HIRING SUMMARY"\n';
+    csvContent += `"${elements.summaryText.textContent.replace(/"/g, '""').replace(/\n/g, ' ')}"\n`;
+    csvContent += '\n';
+  }
+  
   // Create CSV header
   const headers = ["Title", "Department", "Location", "Seniority", "Employment Type", "Source", "Posted Date", "URL"];
   
@@ -796,7 +889,7 @@ function exportToCSVFormat() {
   ]);
 
   // Combine headers and rows
-  const csvContent = [
+  csvContent += [
     headers.join(","),
     ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
   ].join("\n");
@@ -820,10 +913,14 @@ function exportToCSVFormat() {
 }
 
 function exportToJSON() {
+  // Add AI summary if enabled
+  const includeAISummary = typeof getSetting === 'function' ? getSetting('includeAISummary') : false;
+  
   const exportData = {
     exportDate: new Date().toISOString(),
     totalJobs: state.jobs.length,
     filters: state.filters,
+    hiringSummary: includeAISummary && elements.summaryText ? elements.summaryText.textContent : undefined,
     jobs: state.jobs.map(job => ({
       title: job.title || "",
       department: job.department || "Unassigned",
@@ -855,6 +952,9 @@ function exportToJSON() {
 }
 
 function exportToExcel() {
+  // Check if charts should be included
+  const includeCharts = typeof getSetting === 'function' ? getSetting('includeChartsInExport') : true;
+  
   // Create HTML table structure that Excel can import
   const headers = ["Title", "Department", "Location", "Seniority", "Employment Type", "Source", "Posted Date", "URL"];
   
@@ -867,13 +967,83 @@ function exportToExcel() {
       <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>
       </x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
       <style>
-        table { border-collapse: collapse; width: 100%; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 30px; }
         th { background-color: #14b8a6; color: white; font-weight: bold; padding: 8px; border: 1px solid #ddd; }
         td { padding: 8px; border: 1px solid #ddd; }
         tr:nth-child(even) { background-color: #f9fafb; }
+        .chart-section { margin: 30px 0; page-break-inside: avoid; }
+        .chart-title { font-size: 18px; font-weight: bold; margin-bottom: 10px; color: #0f172a; }
+        .chart-image { max-width: 600px; border: 1px solid #e2e8f0; }
+        .summary-section { margin-bottom: 30px; padding: 20px; background-color: #f1f5f9; border-left: 4px solid #14b8a6; }
+        .summary-title { font-size: 20px; font-weight: bold; margin-bottom: 10px; color: #0f172a; }
       </style>
     </head>
     <body>
+      <h1 style="color: #0f172a; margin-bottom: 20px;">Job Analysis Report</h1>
+      <p style="color: #64748b; margin-bottom: 30px;">Generated on ${new Date().toLocaleDateString()}</p>
+  `;
+
+  // Add AI Summary if enabled
+  const includeAISummary = typeof getSetting === 'function' ? getSetting('includeAISummary') : false;
+  if (includeAISummary && elements.summaryText && elements.summaryText.innerHTML) {
+    xlsContent += `
+      <div class="summary-section">
+        <div class="summary-title">Hiring Summary</div>
+        <div>${elements.summaryText.innerHTML}</div>
+      </div>
+    `;
+  }
+
+  // Add charts if enabled (as ASCII/text representation since Excel HTML doesn't support embedded images well)
+  if (includeCharts && state.summary) {
+    xlsContent += `
+      <div style="margin: 30px 0; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0;">
+        <h2 style="color: #0f172a; margin-bottom: 15px;">Chart Data Summary</h2>
+    `;
+    
+    // Department breakdown
+    if (state.summary.byDepartment) {
+      xlsContent += '<div style="margin-bottom: 20px;"><strong>Roles by Department:</strong><br/>';
+      const deptEntries = Object.entries(state.summary.byDepartment)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+      deptEntries.forEach(([dept, count]) => {
+        const percentage = Math.round((count / state.jobs.length) * 100);
+        xlsContent += `${dept}: ${count} roles (${percentage}%)<br/>`;
+      });
+      xlsContent += '</div>';
+    }
+
+    // Seniority breakdown
+    if (state.summary.bySeniority) {
+      xlsContent += '<div style="margin-bottom: 20px;"><strong>Seniority Mix:</strong><br/>';
+      const seniorityEntries = Object.entries(state.summary.bySeniority)
+        .sort((a, b) => b[1] - a[1]);
+      seniorityEntries.forEach(([level, count]) => {
+        const percentage = Math.round((count / state.jobs.length) * 100);
+        xlsContent += `${level}: ${count} roles (${percentage}%)<br/>`;
+      });
+      xlsContent += '</div>';
+    }
+
+    // Location breakdown
+    if (state.summary.byLocation) {
+      xlsContent += '<div style="margin-bottom: 20px;"><strong>Top Locations:</strong><br/>';
+      const locationEntries = Object.entries(state.summary.byLocation)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+      locationEntries.forEach(([loc, count]) => {
+        const percentage = Math.round((count / state.jobs.length) * 100);
+        xlsContent += `${loc}: ${count} roles (${percentage}%)<br/>`;
+      });
+      xlsContent += '</div>';
+    }
+    
+    xlsContent += '</div>';
+  }
+
+  xlsContent += `
+      <h2 style="color: #0f172a; margin: 30px 0 20px 0;">Job Listings</h2>
       <table>
         <thead>
           <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
@@ -911,11 +1081,6 @@ function exportToExcel() {
   document.body.removeChild(link);
 
   showStatus(`Exported ${state.jobs.length} jobs to ${filename}`, "success");
-}
-
-function exportToPDF() {
-  showStatus("PDF export requires additional libraries. Exporting as CSV instead.", "info");
-  exportToCSVFormat();
 }
 
 function escapeHtml(text) {

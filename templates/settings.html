@@ -79,14 +79,6 @@
               </label>
               <p class="settings-hint">Automatically create AI summary when jobs are loaded</p>
             </div>
-
-            <div class="settings-group">
-              <label class="settings-checkbox">
-                <input type="checkbox" checked>
-                <span class="settings-checkbox-label">Show remote work indicators</span>
-              </label>
-              <p class="settings-hint">Display remote work badges in job listings</p>
-            </div>
           </div>
         </section>
 
@@ -106,7 +98,6 @@
                   <option value="csv" selected>CSV</option>
                   <option value="excel">Excel (XLSX)</option>
                   <option value="json">JSON</option>
-                  <option value="pdf">PDF Report</option>
                 </select>
               </label>
               <p class="settings-hint">Default format for exporting job data</p>
@@ -117,7 +108,7 @@
                 <input type="checkbox" checked>
                 <span class="settings-checkbox-label">Include charts in exports</span>
               </label>
-              <p class="settings-hint">Embed visualization charts in PDF/Excel exports</p>
+              <p class="settings-hint">Embed visualization charts in Excel exports</p>
             </div>
 
             <div class="settings-group">
@@ -126,41 +117,6 @@
                 <span class="settings-checkbox-label">Include AI summary in exports</span>
               </label>
               <p class="settings-hint">Add generated hiring summary to exported reports</p>
-            </div>
-          </div>
-        </section>
-
-        <!-- API Keys -->
-        <section class="panel settings-section">
-          <header class="panel__header">
-            <div>
-              <h3>API Integrations</h3>
-              <p>Connect external services and manage API credentials</p>
-            </div>
-          </header>
-          <div class="settings-form">
-            <div class="settings-group">
-              <label class="settings-label">
-                <span class="settings-label-text">OpenAI API Key</span>
-                <input type="password" class="settings-input" placeholder="sk-...">
-              </label>
-              <p class="settings-hint">Required for enhanced AI-powered summaries and insights</p>
-            </div>
-
-            <div class="settings-group">
-              <label class="settings-label">
-                <span class="settings-label-text">Slack Webhook URL</span>
-                <input type="url" class="settings-input" placeholder="https://hooks.slack.com/services/...">
-              </label>
-              <p class="settings-hint">Send job analysis notifications to Slack</p>
-            </div>
-
-            <div class="settings-group">
-              <label class="settings-checkbox">
-                <input type="checkbox">
-                <span class="settings-checkbox-label">Enable webhook notifications</span>
-              </label>
-              <p class="settings-hint">Automatically notify when new job analyses are completed</p>
             </div>
           </div>
         </section>

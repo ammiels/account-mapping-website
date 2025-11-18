@@ -5,11 +5,9 @@ const defaultSettings = {
   defaultPlatform: 'all',
   jobsPerPage: 50,
   autoGenerateSummary: true,
-  showRemoteIndicators: true,
   exportFormat: 'csv',
   includeChartsInExport: true,
   includeAISummary: false,
-  enableWebhookNotifications: false,
   cacheDuration: 24
 };
 
@@ -61,13 +59,9 @@ function initializeSettingsPage() {
     defaultPlatform: document.querySelector('select[class*="settings-select"]'),
     jobsPerPage: document.querySelectorAll('select[class*="settings-select"]')[1],
     autoGenerateSummary: document.querySelectorAll('input[type="checkbox"]')[0],
-    showRemoteIndicators: document.querySelectorAll('input[type="checkbox"]')[1],
     exportFormat: document.querySelectorAll('select[class*="settings-select"]')[2],
-    includeChartsInExport: document.querySelectorAll('input[type="checkbox"]')[2],
-    includeAISummary: document.querySelectorAll('input[type="checkbox"]')[3],
-    openAIKey: document.querySelector('input[type="password"]'),
-    slackWebhook: document.querySelector('input[type="url"]'),
-    enableWebhookNotifications: document.querySelectorAll('input[type="checkbox"]')[4],
+    includeChartsInExport: document.querySelectorAll('input[type="checkbox"]')[1],
+    includeAISummary: document.querySelectorAll('input[type="checkbox"]')[2],
     cacheDuration: document.querySelectorAll('select[class*="settings-select"]')[3],
     saveButton: document.querySelector('.btn--primary'),
     resetButton: document.querySelector('.btn--ghost'),
@@ -82,11 +76,9 @@ function initializeSettingsPage() {
     if (elements.defaultPlatform) elements.defaultPlatform.value = settings.defaultPlatform;
     if (elements.jobsPerPage) elements.jobsPerPage.value = settings.jobsPerPage;
     if (elements.autoGenerateSummary) elements.autoGenerateSummary.checked = settings.autoGenerateSummary;
-    if (elements.showRemoteIndicators) elements.showRemoteIndicators.checked = settings.showRemoteIndicators;
     if (elements.exportFormat) elements.exportFormat.value = settings.exportFormat;
     if (elements.includeChartsInExport) elements.includeChartsInExport.checked = settings.includeChartsInExport;
     if (elements.includeAISummary) elements.includeAISummary.checked = settings.includeAISummary;
-    if (elements.enableWebhookNotifications) elements.enableWebhookNotifications.checked = settings.enableWebhookNotifications;
     if (elements.cacheDuration) elements.cacheDuration.value = settings.cacheDuration;
   }
 
@@ -98,13 +90,9 @@ function initializeSettingsPage() {
       defaultPlatform: elements.defaultPlatform?.value || 'all',
       jobsPerPage: parseInt(elements.jobsPerPage?.value) || 50,
       autoGenerateSummary: elements.autoGenerateSummary?.checked ?? true,
-      showRemoteIndicators: elements.showRemoteIndicators?.checked ?? true,
       exportFormat: elements.exportFormat?.value || 'csv',
       includeChartsInExport: elements.includeChartsInExport?.checked ?? true,
       includeAISummary: elements.includeAISummary?.checked ?? false,
-      openAIKey: elements.openAIKey?.value || '',
-      slackWebhook: elements.slackWebhook?.value || '',
-      enableWebhookNotifications: elements.enableWebhookNotifications?.checked ?? false,
       cacheDuration: parseInt(elements.cacheDuration?.value) || 24
     };
 
