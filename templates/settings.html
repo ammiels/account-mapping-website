@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar__header">
+      <div class="sidebar__title-block">
+        <h1 class="sidebar__title">Company Account Mapping</h1>
+        <p class="sidebar__subtitle">Insights at a glance</p>
+      </div>
+    </div>
+    <nav class="sidebar__nav">
+      <a class="sidebar__nav-item" href="/dashboard">
+        <i class="fa-solid fa-chart-line"></i>
+        <span>Dashboard</span>
+      </a>
+      <a class="sidebar__nav-item" href="#">
+        <i class="fa-solid fa-folder-open"></i>
+        <span>Saved Analyses</span>
+      </a>
+      <a class="sidebar__nav-item is-active" href="/settings">
+        <i class="fa-solid fa-gear"></i>
+        <span>Settings</span>
+      </a>
+    </nav>
+    <footer class="sidebar__footer">
+      <p class="sidebar__footer-text">Configure your preferences and integrations.</p>
+    </footer>
+  </aside>
+  <div class="workspace">
+    <header class="topbar">
+      <div class="topbar__titles">
+        <h2>Settings</h2>
+        <p>Manage your preferences, API keys, and export options</p>
+      </div>
+    </header>
+    <main class="content-area">
+      <div class="settings-layout">
+        
+        <!-- General Settings -->
+        <section class="panel settings-section">
+          <header class="panel__header">
+            <div>
+              <h3>General Preferences</h3>
+              <p>Customize how the dashboard behaves and displays data</p>
+            </div>
+          </header>
+          <div class="settings-form">
+            <div class="settings-group">
+              <label class="settings-label">
+                <span class="settings-label-text">Default Platform Filter</span>
+                <select class="settings-select">
+                  <option value="all">All Platforms</option>
+                  <option value="greenhouse">Greenhouse</option>
+                  <option value="lever">Lever</option>
+                  <option value="workable">Workable</option>
+                  <option value="indeed">Indeed</option>
+                </select>
+              </label>
+              <p class="settings-hint">Choose which platform to filter by default when loading data</p>
+            </div>
+
+            <div class="settings-group">
+              <label class="settings-label">
+                <span class="settings-label-text">Jobs per page</span>
+                <select class="settings-select">
+                  <option value="25">25</option>
+                  <option value="50" selected>50</option>
+                  <option value="100">100</option>
+                  <option value="all">All</option>
+                </select>
+              </label>
+              <p class="settings-hint">Number of job listings to display in the table</p>
+            </div>
+
+            <div class="settings-group">
+              <label class="settings-checkbox">
+                <input type="checkbox" checked>
+                <span class="settings-checkbox-label">Auto-generate hiring summary</span>
+              </label>
+              <p class="settings-hint">Automatically create AI summary when jobs are loaded</p>
+            </div>
+
+            <div class="settings-group">
+              <label class="settings-checkbox">
+                <input type="checkbox" checked>
+                <span class="settings-checkbox-label">Show remote work indicators</span>
+              </label>
+              <p class="settings-hint">Display remote work badges in job listings</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Export Settings -->
+        <section class="panel settings-section">
+          <header class="panel__header">
+            <div>
+              <h3>Export Options</h3>
+              <p>Configure default settings for data exports</p>
+            </div>
+          </header>
+          <div class="settings-form">
+            <div class="settings-group">
+              <label class="settings-label">
+                <span class="settings-label-text">Export Format</span>
+                <select class="settings-select">
+                  <option value="csv" selected>CSV</option>
+                  <option value="excel">Excel (XLSX)</option>
+                  <option value="json">JSON</option>
+                  <option value="pdf">PDF Report</option>
+                </select>
+              </label>
+              <p class="settings-hint">Default format for exporting job data</p>
+            </div>
+
+            <div class="settings-group">
+              <label class="settings-checkbox">
+                <input type="checkbox" checked>
+                <span class="settings-checkbox-label">Include charts in exports</span>
+              </label>
+              <p class="settings-hint">Embed visualization charts in PDF/Excel exports</p>
+            </div>
+
+            <div class="settings-group">
+              <label class="settings-checkbox">
+                <input type="checkbox">
+                <span class="settings-checkbox-label">Include AI summary in exports</span>
+              </label>
+              <p class="settings-hint">Add generated hiring summary to exported reports</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- API Keys -->
+        <section class="panel settings-section">
+          <header class="panel__header">
+            <div>
+              <h3>API Integrations</h3>
+              <p>Connect external services and manage API credentials</p>
+            </div>
+          </header>
+          <div class="settings-form">
+            <div class="settings-group">
+              <label class="settings-label">
+                <span class="settings-label-text">OpenAI API Key</span>
+                <input type="password" class="settings-input" placeholder="sk-...">
+              </label>
+              <p class="settings-hint">Required for enhanced AI-powered summaries and insights</p>
+            </div>
+
+            <div class="settings-group">
+              <label class="settings-label">
+                <span class="settings-label-text">Slack Webhook URL</span>
+                <input type="url" class="settings-input" placeholder="https://hooks.slack.com/services/...">
+              </label>
+              <p class="settings-hint">Send job analysis notifications to Slack</p>
+            </div>
+
+            <div class="settings-group">
+              <label class="settings-checkbox">
+                <input type="checkbox">
+                <span class="settings-checkbox-label">Enable webhook notifications</span>
+              </label>
+              <p class="settings-hint">Automatically notify when new job analyses are completed</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Data Retention -->
+        <section class="panel settings-section">
+          <header class="panel__header">
+            <div>
+              <h3>Data Management</h3>
+              <p>Control how your data is stored and retained</p>
+            </div>
+          </header>
+          <div class="settings-form">
+            <div class="settings-group">
+              <label class="settings-label">
+                <span class="settings-label-text">Cache Duration</span>
+                <select class="settings-select">
+                  <option value="1">1 hour</option>
+                  <option value="6">6 hours</option>
+                  <option value="24" selected>24 hours</option>
+                  <option value="168">7 days</option>
+                </select>
+              </label>
+              <p class="settings-hint">How long to cache fetched job data before refetching</p>
+            </div>
+
+            <div class="settings-group">
+              <button class="btn btn--secondary">
+                <i class="fa-solid fa-trash"></i>
+                Clear All Cached Data
+              </button>
+              <p class="settings-hint">Remove all locally stored job analyses and cached results</p>
+            </div>
+
+            <div class="settings-group">
+              <button class="btn btn--secondary">
+                <i class="fa-solid fa-download"></i>
+                Download All Data
+              </button>
+              <p class="settings-hint">Export all your saved analyses and settings</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Save Actions -->
+        <section class="settings-actions">
+          <button class="btn btn--primary">
+            <i class="fa-solid fa-check"></i>
+            Save Settings
+          </button>
+          <button class="btn btn--ghost">
+            Reset to Defaults
+          </button>
+        </section>
+
+      </div>
+    </main>
+  </div>
+</div>
+{% endblock %}

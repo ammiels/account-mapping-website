@@ -1,0 +1,385 @@
+import json
+import logging
+import re
+from collections import Counter
+from dataclasses import dataclass, asdict
+from typing import Dict, List, Optional, Tuple
+from urllib.parse import urljoin, urlparse
+from urllib.robotparser import RobotFileParser
+
+import requests
+from bs4 import BeautifulSoup
+from flask import Flask, jsonify, render_template, request
+
+
+app = Flask(__name__)
+app.config["JSON_SORT_KEYS"] = False
+
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/119.0.0.0 Safari/537.36"
+)
+
+PLATFORM_PATTERNS: List[Tuple[str, str]] = [
+    ("greenhouse.io", "Greenhouse"),
+    ("lever.co", "Lever"),
+    ("workable.com", "Workable"),
+    ("indeed.com", "Indeed"),
+]
+
+
+def detect_platform(search_url: str) -> str:
+    """Return the normalized platform name for a URL, or 'Unsupported'."""
+    domain = urlparse(search_url).netloc.lower()
+    for needle, platform in PLATFORM_PATTERNS:
+        if needle in domain:
+            return platform
+    return "Unsupported"
+
+
+def robots_allows(url: str) -> bool:
+    """Check robots.txt rules for the url; default to allowed if not reachable."""
+    parsed = urlparse(url)
+    robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
+    parser = RobotFileParser()
+    parser.set_url(robots_url)
+    try:
+        parser.read()
+    except Exception as exc:  # pragma: no cover - network failure fallback
+        logging.debug("robots.txt unavailable for %s: %s", robots_url, exc)
+        return True
+    path = parsed.path or "/"
+    return parser.can_fetch(USER_AGENT, path)
+
+
+@dataclass
+class JobRecord:
+    title: str
+    department: Optional[str]
+    location: Optional[str]
+    seniority: Optional[str]
+    employment_type: Optional[str]
+    source: str
+    posted_date: Optional[str]
+    url: str
+    is_remote: bool
+
+
+def fetch_greenhouse_jobs(search_url: str) -> List[JobRecord]:
+    """Fetch publicly listed Greenhouse openings from the provided URL."""
+    if not robots_allows(search_url):
+        logging.info("Robots.txt disallows fetching %s", search_url)
+        return []
+
+    try:
+        response = requests.get(
+            search_url,
+            headers={"User-Agent": USER_AGENT},
+            timeout=10,
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        logging.warning("Unable to fetch Greenhouse URL %s: %s", search_url, exc)
+        return []
+
+    html = response.text
+
+    remix_jobs = parse_greenhouse_remix_jobs(html, search_url)
+    if remix_jobs:
+        return remix_jobs
+
+    soup = BeautifulSoup(html, "html.parser")
+    return parse_greenhouse_dom_jobs(soup, search_url)
+
+
+def parse_greenhouse_remix_jobs(html: str, base_url: str) -> List[JobRecord]:
+    """Parse job posts from the modern Remix-powered Greenhouse boards."""
+    match = re.search(r"window\.__remixContext\s*=\s*(\{.*?\})\s*;", html, re.DOTALL)
+    if not match:
+        return []
+
+    try:
+        context = json.loads(match.group(1))
+    except json.JSONDecodeError as exc:
+        logging.debug("Unable to decode Greenhouse remix payload: %s", exc)
+        return []
+
+    loader_data = context.get("state", {}).get("loaderData", {})
+    board_payload: Optional[Dict[str, object]] = None
+    if isinstance(loader_data, dict):
+        board_payload = loader_data.get("routes/$url_token")
+        if not board_payload:
+            for payload in loader_data.values():
+                if isinstance(payload, dict) and "jobPosts" in payload:
+                    board_payload = payload
+                    break
+
+    if not isinstance(board_payload, dict):
+        return []
+
+    job_posts = board_payload.get("jobPosts", {})
+    data = job_posts.get("data") if isinstance(job_posts, dict) else None
+    if not isinstance(data, list):
+        return []
+
+    jobs: List[JobRecord] = []
+    for entry in data:
+        if not isinstance(entry, dict):
+            continue
+
+        title = (entry.get("title") or "").strip()
+        job_url = entry.get("absolute_url") or entry.get("url")
+        if not title or not job_url:
+            continue
+
+        job_url = urljoin(base_url, job_url)
+        location = (entry.get("location") or "").strip() or None
+
+        department = None
+        dept_info = entry.get("department")
+        if isinstance(dept_info, dict):
+            department = (dept_info.get("name") or "").strip() or None
+        department = department or "General"
+
+        content_html = entry.get("content") or ""
+        content_text = ""
+        if content_html:
+            content_text = BeautifulSoup(content_html, "html.parser").get_text(" ", strip=True)
+
+        text_blob = " ".join(
+            filter(None, [title, content_text, location or ""])
+        ).lower()
+
+        seniority = normalize_seniority(title)
+        employment_type = normalize_employment_type(text_blob)
+        remote_context = f"{title} {content_text}".lower()
+        is_remote = detect_remote_role((location or "").lower(), remote_context)
+
+        jobs.append(
+            JobRecord(
+                title=title,
+                department=department,
+                location=location,
+                seniority=seniority,
+                employment_type=employment_type,
+                source="Greenhouse",
+                posted_date=entry.get("published_at"),
+                url=job_url,
+                is_remote=is_remote,
+            )
+        )
+
+    return jobs
+
+
+def parse_greenhouse_dom_jobs(soup: BeautifulSoup, base_url: str) -> List[JobRecord]:
+    """Fallback parser for legacy Greenhouse board markup."""
+    openings = soup.select("#departments .opening") or soup.select(".opening")
+
+    jobs: List[JobRecord] = []
+    for opening in openings:
+        anchor = opening.find("a", href=True)
+        if not anchor:
+            continue
+
+        title = anchor.get_text(strip=True)
+        if not title:
+            continue
+        job_url = urljoin(base_url, anchor["href"])
+
+        location_el = opening.find(class_="location")
+        location = location_el.get_text(strip=True) if location_el else None
+
+        department = None
+        for sibling in opening.parents:
+            header = sibling.find_previous(["h2", "h3"])
+            if header and header.get_text(strip=True):
+                department = header.get_text(strip=True)
+                break
+        department = department or "General"
+
+        details_text = opening.get_text(" ", strip=True).lower()
+        location_text = (location or "").lower()
+
+        seniority = normalize_seniority(title)
+        employment_type = normalize_employment_type(details_text)
+        is_remote = detect_remote_role(location_text, title.lower())
+
+        jobs.append(
+            JobRecord(
+                title=title,
+                department=department,
+                location=location,
+                seniority=seniority,
+                employment_type=employment_type,
+                source="Greenhouse",
+                posted_date=None,
+                url=job_url,
+                is_remote=is_remote,
+            )
+        )
+
+    return jobs
+
+
+def normalize_seniority(title: str) -> Optional[str]:
+    """Map common seniority keywords into a consistent label."""
+    title_lc = title.lower()
+    mapping = [
+        ("intern", "Intern"),
+        ("graduate", "Graduate"),
+        ("junior", "Junior"),
+        ("associate", "Associate"),
+        ("mid", "Mid"),
+        ("senior", "Senior"),
+        ("lead", "Lead"),
+        ("principal", "Principal"),
+        ("director", "Director"),
+        ("vp", "VP"),
+        ("vice president", "VP"),
+        ("head of", "Head"),
+    ]
+    for keyword, label in mapping:
+        if keyword in title_lc:
+            return label
+    return None
+
+
+def normalize_employment_type(details_text: str) -> Optional[str]:
+    """Infer employment type from descriptive text when possible."""
+    if "full time" in details_text or "full-time" in details_text:
+        return "full_time"
+    if "part time" in details_text or "part-time" in details_text:
+        return "part_time"
+    if "contract" in details_text or "temporary" in details_text:
+        return "contract"
+    if re.search(r"\bintern(ship)?\b", details_text):
+        return "internship"
+    return None
+
+
+def detect_remote_role(location_text: str, title_text: str) -> bool:
+    """Return true if the location/title suggests a remote-friendly role."""
+    remote_keywords = [
+        "remote",
+        "anywhere",
+        "distributed",
+        "work from home",
+        "flexible",
+        "hybrid",
+    ]
+    return any(keyword in location_text or keyword in title_text for keyword in remote_keywords)
+
+
+def summarize_jobs(jobs: List[JobRecord]) -> Dict[str, object]:
+    """Aggregate summary metrics for the dashboard."""
+    total = len(jobs)
+    departments = Counter(job.department or "Unassigned" for job in jobs)
+    seniority = Counter(job.seniority or "Unspecified" for job in jobs)
+    locations = Counter(job.location or "Unspecified" for job in jobs)
+
+    remote_count = sum(1 for job in jobs if job.is_remote)
+    onsite_count = total - remote_count
+
+    top_locations = dict(locations.most_common(6))
+
+    return {
+        "total_roles": total,
+        "department_count": len([d for d in departments if d != "Unassigned"]),
+        "location_count": len([l for l in locations if l != "Unspecified"]),
+        "remote_roles": remote_count,
+        "onsite_roles": onsite_count,
+        "by_department": dict(departments),
+        "by_seniority": dict(seniority),
+        "top_locations": top_locations,
+    }
+
+
+def serialize_jobs(jobs: List[JobRecord]) -> List[Dict[str, object]]:
+    return [asdict(job) for job in jobs]
+
+
+def fetch_jobs(search_url: str, platform: str) -> Tuple[List[JobRecord], Optional[str]]:
+    """Fetch job records for a given platform, returning jobs and an info message."""
+    if platform == "Greenhouse":
+        jobs = fetch_greenhouse_jobs(search_url)
+        message = None if jobs else "No roles found on the provided Greenhouse page."
+        return jobs, message
+
+    placeholder = f"Support for {platform} is coming soon."
+    return [], placeholder
+
+
+@app.route("/")
+@app.route("/dashboard")
+def dashboard() -> str:
+    return render_template("dashboard.html", title="Company Account Mapping")
+
+
+@app.route("/settings")
+def settings() -> str:
+    return render_template("settings.html", title="Settings - Company Account Mapping")
+
+
+@app.route("/saved")
+def saved() -> str:
+    return render_template("saved.html", title="Saved Analyses - Company Account Mapping")
+
+
+@app.post("/api/fetch-jobs")
+def api_fetch_jobs():
+    payload = request.get_json(silent=True) or {}
+    search_url = (payload.get("search_url") or "").strip()
+
+    if not search_url:
+        return (
+            jsonify(
+                {
+                    "supported": False,
+                    "platform": "Unknown",
+                    "message": "Please provide a job search URL to continue.",
+                    "jobs": [],
+                    "summary": {},
+                }
+            ),
+            400,
+        )
+
+    platform = detect_platform(search_url)
+
+    if platform == "Unsupported":
+        return jsonify(
+            {
+                "supported": False,
+                "platform": "Unknown",
+                "message": "This URL is not from a supported platform.",
+                "jobs": [],
+                "summary": {},
+            }
+        )
+
+    jobs, info_message = fetch_jobs(search_url, platform)
+    summary = summarize_jobs(jobs) if jobs else {
+        "total_roles": 0,
+        "department_count": 0,
+        "location_count": 0,
+        "remote_roles": 0,
+        "onsite_roles": 0,
+        "by_department": {},
+        "by_seniority": {},
+        "top_locations": {},
+    }
+
+    response = {
+        "supported": True,
+        "platform": platform,
+        "message": info_message,
+        "jobs": serialize_jobs(jobs),
+        "summary": summary,
+    }
+    return jsonify(response)
+
+
+if __name__ == "__main__":
+    app.run(debug=True)

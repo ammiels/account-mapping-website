@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar__header">
+      <div class="sidebar__title-block">
+        <h1 class="sidebar__title">Company Account Mapping</h1>
+        <p class="sidebar__subtitle">Insights at a glance</p>
+      </div>
+    </div>
+    <nav class="sidebar__nav">
+      <a class="sidebar__nav-item" href="/dashboard">
+        <i class="fa-solid fa-chart-line"></i>
+        <span>Dashboard</span>
+      </a>
+      <a class="sidebar__nav-item is-active" href="/saved">
+        <i class="fa-solid fa-folder-open"></i>
+        <span>Saved Analyses</span>
+      </a>
+      <a class="sidebar__nav-item" href="/settings">
+        <i class="fa-solid fa-gear"></i>
+        <span>Settings</span>
+      </a>
+    </nav>
+    <footer class="sidebar__footer">
+      <p class="sidebar__footer-text">View and manage your saved company analyses.</p>
+    </footer>
+  </aside>
+  <div class="workspace">
+    <header class="topbar">
+      <div class="topbar__titles">
+        <h2>Saved Analyses</h2>
+        <p>Access your previously saved job market analyses</p>
+      </div>
+    </header>
+    <main class="content-area">
+      <div class="saved-layout">
+        
+        <!-- Empty State -->
+        <div class="saved-empty" id="saved-empty">
+          <div class="saved-empty__icon">
+            <i class="fa-solid fa-folder-open"></i>
+          </div>
+          <h3>No saved analyses yet</h3>
+          <p>Start by fetching jobs on the dashboard, then save your analysis to view it here later.</p>
+          <a href="/dashboard" class="btn btn--primary">
+            <i class="fa-solid fa-chart-line"></i>
+            Go to Dashboard
+          </a>
+        </div>
+
+        <!-- Saved Analyses Grid -->
+        <div class="saved-grid" id="saved-grid" style="display: none;">
+          <!-- Analysis cards will be dynamically inserted here -->
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- View Analysis Modal -->
+<div class="modal" id="view-analysis-modal" hidden>
+  <div class="modal__backdrop" id="view-analysis-backdrop"></div>
+  <div class="modal__dialog modal__dialog--large">
+    <header class="modal__header">
+      <h2 id="analysis-modal-title">Analysis Details</h2>
+      <button class="modal-close-btn" id="analysis-modal-close" aria-label="Close">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </header>
+    <div class="modal__body modal__body--analysis">
+      <div class="analysis-meta">
+        <div class="analysis-meta-item">
+          <span class="analysis-meta-label">Company</span>
+          <span class="analysis-meta-value" id="analysis-company">--</span>
+        </div>
+        <div class="analysis-meta-item">
+          <span class="analysis-meta-label">Saved</span>
+          <span class="analysis-meta-value" id="analysis-date">--</span>
+        </div>
+        <div class="analysis-meta-item">
+          <span class="analysis-meta-label">Total Roles</span>
+          <span class="analysis-meta-value" id="analysis-total">--</span>
+        </div>
+        <div class="analysis-meta-item">
+          <span class="analysis-meta-label">Platform</span>
+          <span class="analysis-meta-value" id="analysis-platform">--</span>
+        </div>
+      </div>
+
+      <div class="analysis-summary" id="analysis-summary-content"></div>
+
+      <div class="analysis-stats">
+        <h3>Key Metrics</h3>
+        <div class="analysis-stats-grid" id="analysis-stats-grid"></div>
+      </div>
+
+      <div class="analysis-departments">
+        <h3>Top Departments</h3>
+        <div class="analysis-list" id="analysis-departments-list"></div>
+      </div>
+
+      <div class="analysis-locations">
+        <h3>Top Locations</h3>
+        <div class="analysis-list" id="analysis-locations-list"></div>
+      </div>
+    </div>
+    <footer class="modal__footer">
+      <button class="btn btn--secondary" id="delete-analysis-btn">
+        <i class="fa-solid fa-trash"></i>
+        Delete
+      </button>
+      <button class="btn btn--primary" id="analysis-modal-ok">Close</button>
+    </footer>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/saved.js') }}" defer></script>
+{% endblock %}

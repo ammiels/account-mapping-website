@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="sidebar__header">
+      <div class="sidebar__title-block">
+        <h1 class="sidebar__title">Company Account Mapping</h1>
+        <p class="sidebar__subtitle">Insights at a glance</p>
+      </div>
+    </div>
+    <nav class="sidebar__nav">
+      <a class="sidebar__nav-item is-active" href="/dashboard">
+        <i class="fa-solid fa-chart-line"></i>
+        <span>Dashboard</span>
+      </a>
+      <a class="sidebar__nav-item" href="/saved">
+        <i class="fa-solid fa-folder-open"></i>
+        <span>Saved Analyses</span>
+      </a>
+      <a class="sidebar__nav-item" href="/settings">
+        <i class="fa-solid fa-gear"></i>
+        <span>Settings</span>
+      </a>
+    </nav>
+    <footer class="sidebar__footer">
+      <p class="sidebar__footer-text">Paste a careers search URL to begin mapping hiring activity.</p>
+    </footer>
+  </aside>
+  <div class="workspace">
+    <header class="topbar">
+      <div class="topbar__titles">
+        <h2>Dashboard</h2>
+        <p>Paste a job search URL to map a company's hiring</p>
+      </div>
+    </header>
+    <main class="content-area">
+      <div class="layout-top">
+        <section class="panel control-panel" id="input-panel">
+          <header class="panel__header">
+            <div>
+              <h3>Job search URL</h3>
+              <p>Detect the platform and surface structured job intelligence automatically.</p>
+            </div>
+            <div class="platform-indicator" id="platform-indicator">Detected: None</div>
+          </header>
+          <form id="job-search-form" class="form">
+            <div class="form__row">
+              <label class="visually-hidden" for="search-url">Job search URL</label>
+              <input id="search-url" name="search-url" type="url" placeholder="https://boards.greenhouse.io/&hellip;" required>
+              <button id="fetch-button" type="submit" class="btn btn--primary">Fetch Jobs</button>
+            </div>
+            <div class="form__meta">
+              <button id="toggle-supported" type="button" class="btn btn--ghost">View supported platforms</button>
+              <span class="form__status" id="fetch-status" role="status" aria-live="polite"></span>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel summary-text-panel" id="summary-text-panel" style="display: none;">
+          <header class="panel__header">
+            <div>
+              <h3>Hiring Summary</h3>
+              <p>AI-generated insights about the company's hiring focus</p>
+            </div>
+            <button class="btn btn--secondary" id="save-analysis-btn" style="display: none;">
+              <i class="fa-solid fa-bookmark"></i>
+              Save Analysis
+            </button>
+          </header>
+          <div class="summary-text-content">
+            <div class="summary-loading" id="summary-loading" style="display: none;">
+              <i class="fas fa-spinner fa-spin"></i> Generating summary...
+            </div>
+            <div class="summary-text" id="summary-text"></div>
+          </div>
+        </section>
+
+        <section class="panel insights-panel" id="summary-cards">
+          <div class="insights-panel__content">
+            <header class="insights-panel__header">
+              <div>
+                <h3>Account pulse</h3>
+                <p>The dashboard ingests public job search pages, structures the open roles, and surfaces account mapping data such as department focus, seniority mix, and hiring locations.</p>
+              </div>
+            </header>
+            <div class="insights-panel__layout">
+              <div class="insights-panel__stack">
+                <div class="card-grid">
+                  <article class="summary-card" data-card="total">
+                    <div class="summary-card__icon"><i class="fa-solid fa-briefcase"></i></div>
+                    <span class="summary-card__label">Total Roles</span>
+                    <span class="summary-card__value" id="total-roles-value">0</span>
+                    <span class="summary-card__caption" id="total-roles-caption">Awaiting import</span>
+                  </article>
+                  <article class="summary-card" data-card="departments">
+                    <div class="summary-card__icon"><i class="fa-solid fa-sitemap"></i></div>
+                    <span class="summary-card__label">Departments Hiring</span>
+                    <span class="summary-card__value" id="departments-value">0</span>
+                    <span class="summary-card__caption" id="departments-caption">--</span>
+                  </article>
+                  <article class="summary-card" data-card="locations">
+                    <div class="summary-card__icon"><i class="fa-solid fa-location-dot"></i></div>
+                    <span class="summary-card__label">Active Locations</span>
+                    <span class="summary-card__value" id="locations-value">0</span>
+                    <span class="summary-card__caption" id="locations-caption">--</span>
+                  </article>
+                  <article class="summary-card" data-card="remote">
+                    <div class="summary-card__icon"><i class="fa-solid fa-house-laptop"></i></div>
+                    <span class="summary-card__label">Remote Mix</span>
+                    <span class="summary-card__value" id="remote-value">0%</span>
+                    <span class="summary-card__caption" id="remote-caption">Remote vs onsite</span>
+                  </article>
+                </div>
+              </div>
+              <div class="mini-charts" id="visuals-panel">
+                <article class="visual-card">
+                  <header class="visual-card__header">
+                    <h3>Roles by department</h3>
+                    <button class="chart-expand-btn" data-chart="department" aria-label="Expand chart">
+                      <i class="fas fa-expand"></i>
+                    </button>
+                  </header>
+                  <canvas id="department-chart" height="200"></canvas>
+                </article>
+                <article class="visual-card">
+                  <header class="visual-card__header">
+                    <h3>Seniority mix</h3>
+                    <button class="chart-expand-btn" data-chart="seniority" aria-label="Expand chart">
+                      <i class="fas fa-expand"></i>
+                    </button>
+                  </header>
+                  <canvas id="seniority-chart" height="200"></canvas>
+                </article>
+                <article class="visual-card">
+                  <header class="visual-card__header">
+                    <h3>Top locations</h3>
+                    <button class="chart-expand-btn" data-chart="location" aria-label="Expand chart">
+                      <i class="fas fa-expand"></i>
+                    </button>
+                  </header>
+                  <canvas id="location-chart" height="200"></canvas>
+                </article>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel panel--table" id="table-panel">
+        <header class="panel__header">
+          <div>
+            <h3>Open roles</h3>
+            <p>Filter by department, location, or seniority to refine the view.</p>
+          </div>
+          <div class="filter-bar">
+            <label for="filter-department" class="visually-hidden">Filter by department</label>
+            <select id="filter-department" class="filter-select">
+              <option value="all">All Departments</option>
+            </select>
+            <label for="filter-location" class="visually-hidden">Filter by location</label>
+            <select id="filter-location" class="filter-select">
+              <option value="all">All Locations</option>
+            </select>
+            <label for="filter-seniority" class="visually-hidden">Filter by seniority</label>
+            <select id="filter-seniority" class="filter-select">
+              <option value="all">All Seniority Levels</option>
+            </select>
+          </div>
+        </header>
+        <div class="table-wrapper">
+          <table id="jobs-table">
+            <thead>
+              <tr>
+                <th>Job Title</th>
+                <th>Department</th>
+                <th>Location</th>
+                <th>Seniority</th>
+                <th>Employment Type</th>
+                <th>Source</th>
+                <th>Posted</th>
+                <th>Link</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <div class="empty-state" id="table-empty-state">No jobs loaded yet. Paste a job search URL above to begin.</div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<div class="modal" id="supported-modal" hidden>
+  <div class="modal__backdrop" id="supported-backdrop"></div>
+  <div class="modal__dialog" role="dialog" aria-labelledby="supported-modal-title" aria-modal="true">
+    <header class="modal__header">
+      <h2 id="supported-modal-title">Supported platforms</h2>
+    </header>
+    <div class="modal__content">
+      <p class="modal__intro">Paste a publicly accessible search or careers page that is allowed by the site’s robots.txt file.</p>
+      <ul class="modal__list">
+        <li><span>Greenhouse</span> <small>Example: https://boards.greenhouse.io/&lt;company&gt;</small></li>
+        <li><span>Lever</span> <small>Example: https://jobs.lever.co/&lt;company&gt;</small></li>
+        <li><span>Workable</span> <small>Example: https://apply.workable.com/&lt;company&gt;</small></li>
+        <li><span>Indeed (public searches)</span> <small>Example: https://www.indeed.com/jobs?q=...</small></li>
+      </ul>
+    </div>
+    <footer class="modal__footer">
+      <button type="button" class="btn btn--primary" id="supported-ok">Got it</button>
+    </footer>
+  </div>
+</div>
+
+<div class="modal" id="chart-modal" hidden>
+  <div class="modal__backdrop" id="chart-backdrop"></div>
+  <div class="modal__dialog modal__dialog--chart">
+    <header class="modal__header">
+      <h2 id="chart-modal-title">Chart View</h2>
+    </header>
+    <div class="modal__body">
+      <canvas id="expanded-chart"></canvas>
+    </div>
+    <footer class="modal__footer">
+      <button class="btn btn--primary" id="chart-modal-close">Close</button>
+    </footer>
+  </div>
+</div>
+
+<div class="modal" id="save-analysis-modal" hidden>
+  <div class="modal__backdrop" id="save-analysis-backdrop"></div>
+  <div class="modal__dialog">
+    <header class="modal__header">
+      <h2>Save Analysis</h2>
+    </header>
+    <div class="modal__content">
+      <p class="modal__intro">Enter a name to identify this analysis (e.g., company name)</p>
+      <div class="form__row">
+        <label for="analysis-name-input" class="visually-hidden">Analysis name</label>
+        <input type="text" id="analysis-name-input" class="settings-input" placeholder="e.g., Gymshark" autocomplete="off">
+      </div>
+    </div>
+    <footer class="modal__footer" style="justify-content: space-between;">
+      <button type="button" class="btn btn--ghost" id="save-analysis-cancel">Cancel</button>
+      <button type="button" class="btn btn--primary" id="save-analysis-confirm">Save</button>
+    </footer>
+  </div>
+</div>
+{% endblock %}
