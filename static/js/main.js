@@ -205,20 +205,29 @@ async function handleFetchJobs(event) {
 }
 
 function initCharts() {
+  // Destroy existing charts first
+  if (state.charts.department) state.charts.department.destroy();
+  if (state.charts.seniority) state.charts.seniority.destroy();
+  if (state.charts.location) state.charts.location.destroy();
+  
   // Check if Chart.js is loaded
   if (typeof Chart === 'undefined') {
     console.error('Chart.js is not loaded');
     return;
   }
 
+  // Detect current theme - light mode has theme-light class
+  const isLightMode = document.body.classList.contains('theme-light');
+  
   const chartDefaults = {
-    color: "#e5e7eb",
+    color: "#94a3b8",
     grid: "rgba(148, 163, 184, 0.12)",
     dataset: {
       background: "rgba(20, 184, 166, 0.35)",
       border: "#14b8a6",
       hover: "rgba(56, 189, 248, 0.55)",
     },
+    donutBorder: isLightMode ? "rgba(255, 255, 255, 0.8)" : "rgba(15, 23, 42, 0.85)",
   };
 
   const deptCtx = document.getElementById("department-chart");
@@ -281,7 +290,7 @@ function initCharts() {
               "#818cf8",
               "#64748b",
             ],
-            borderColor: "rgba(15, 23, 42, 0.85)",
+            borderColor: chartDefaults.donutBorder,
             borderWidth: 2,
           },
         ],

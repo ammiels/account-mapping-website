@@ -14,6 +14,53 @@
   <body class="theme-dark">
     {% block content %}{% endblock %}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" crossorigin="anonymous" defer></script>
+    <script>
+      // Theme management - runs immediately to prevent flash
+      (function() {
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.body.className = 'theme-' + savedTheme;
+      })();
+      
+      // Theme toggle functionality
+      document.addEventListener('DOMContentLoaded', function() {
+        const themeToggle = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+        const themeText = document.getElementById('theme-text');
+        
+        function updateThemeUI(theme) {
+          if (theme === 'light') {
+            themeIcon.className = 'fa-solid fa-sun';
+            themeText.textContent = 'Dark Mode';
+          } else {
+            themeIcon.className = 'fa-solid fa-moon';
+            themeText.textContent = 'Light Mode';
+          }
+        }
+        
+        // Initialize UI based on current theme
+        const currentTheme = document.body.classList.contains('theme-light') ? 'light' : 'dark';
+        updateThemeUI(currentTheme);
+        
+        if (themeToggle) {
+          themeToggle.addEventListener('click', function() {
+            const isLight = document.body.classList.contains('theme-light');
+            const newTheme = isLight ? 'dark' : 'light';
+            
+            document.body.className = 'theme-' + newTheme;
+            localStorage.setItem('theme', newTheme);
+            updateThemeUI(newTheme);
+            
+            // Reinitialize charts with new theme if they exist
+            if (typeof initCharts === 'function' && typeof state !== 'undefined' && state.jobs && state.jobs.length > 0) {
+              initCharts();
+              if (typeof renderCharts === 'function') {
+                renderCharts(state.jobs);
+              }
+            }
+          });
+        }
+      });
+    </script>
     <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
     {% block extra_scripts %}{% endblock %}
