@@ -894,8 +894,9 @@ a:hover {
 .saved-layout {
   min-height: 400px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding-top: 40px;
 }
 
 .saved-empty {
