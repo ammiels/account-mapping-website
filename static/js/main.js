@@ -57,6 +57,7 @@ function cacheElements() {
   elements.saveAnalysisInput = document.getElementById("analysis-name-input");
   elements.saveAnalysisConfirm = document.getElementById("save-analysis-confirm");
   elements.saveAnalysisCancel = document.getElementById("save-analysis-cancel");
+  elements.exportCsvBtn = document.getElementById("export-csv-btn");
 }
 
 function bindInteractions() {
@@ -115,6 +116,10 @@ function bindInteractions() {
 
   if (elements.saveAnalysisConfirm) {
     elements.saveAnalysisConfirm.addEventListener("click", confirmSaveAnalysis);
+  }
+
+  if (elements.exportCsvBtn) {
+    elements.exportCsvBtn.addEventListener("click", exportToCSV);
   }
 }
 
@@ -635,7 +640,10 @@ function sliceTopEntries(records, limit) {
 }
 
 function renderHiringSummary(jobs) {
-  if (!elements.summaryTextPanel || !jobs.length) {
+  // Check if auto-generate summary is enabled in settings
+  const autoGenerateSummary = typeof getSetting === 'function' ? getSetting('autoGenerateSummary') : true;
+  
+  if (!elements.summaryTextPanel || !jobs.length || !autoGenerateSummary) {
     if (elements.summaryTextPanel) {
       elements.summaryTextPanel.style.display = 'none';
     }
@@ -735,10 +743,190 @@ function renderEmptyState(jobs = []) {
   const hasData = jobs.length > 0;
   elements.emptyState.style.display = hasData ? "none" : "block";
   
-  // Show/hide save button
+  // Show/hide save and export buttons
   if (elements.saveAnalysisBtn) {
     elements.saveAnalysisBtn.style.display = hasData ? "block" : "none";
   }
+  if (elements.exportCsvBtn) {
+    elements.exportCsvBtn.style.display = hasData ? "block" : "none";
+  }
+}
+
+function exportToCSV() {
+  if (state.jobs.length === 0) {
+    showStatus("No data to export. Please fetch jobs first.", "error");
+    return;
+  }
+
+  // Get export format from settings (default to CSV if settings.js not loaded)
+  const exportFormat = typeof getSetting === 'function' ? getSetting('exportFormat') : 'csv';
+
+  // Export based on selected format
+  switch (exportFormat) {
+    case 'json':
+      exportToJSON();
+      break;
+    case 'excel':
+      exportToExcel();
+      break;
+    case 'pdf':
+      exportToPDF();
+      break;
+    case 'csv':
+    default:
+      exportToCSVFormat();
+      break;
+  }
+}
+
+function exportToCSVFormat() {
+  // Create CSV header
+  const headers = ["Title", "Department", "Location", "Seniority", "Employment Type", "Source", "Posted Date", "URL"];
+  
+  // Create CSV rows
+  const rows = state.jobs.map(job => [
+    job.title || "",
+    job.department || "Unassigned",
+    job.location || "Unspecified",
+    job.seniority || "Unspecified",
+    formatEmploymentType(job.employment_type),
+    job.source || "",
+    job.posted_date || "Unknown",
+    job.url || ""
+  ]);
+
+  // Combine headers and rows
+  const csvContent = [
+    headers.join(","),
+    ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+  ].join("\n");
+
+  // Create blob and download
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  
+  const timestamp = new Date().toISOString().split('T')[0];
+  const filename = `job-analysis-${timestamp}.csv`;
+  
+  link.setAttribute("href", url);
+  link.setAttribute("download", filename);
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  showStatus(`Exported ${state.jobs.length} jobs to ${filename}`, "success");
+}
+
+function exportToJSON() {
+  const exportData = {
+    exportDate: new Date().toISOString(),
+    totalJobs: state.jobs.length,
+    filters: state.filters,
+    jobs: state.jobs.map(job => ({
+      title: job.title || "",
+      department: job.department || "Unassigned",
+      location: job.location || "Unspecified",
+      seniority: job.seniority || "Unspecified",
+      employmentType: formatEmploymentType(job.employment_type),
+      source: job.source || "",
+      postedDate: job.posted_date || "Unknown",
+      url: job.url || ""
+    }))
+  };
+
+  const jsonContent = JSON.stringify(exportData, null, 2);
+  const blob = new Blob([jsonContent], { type: "application/json;charset=utf-8;" });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  
+  const timestamp = new Date().toISOString().split('T')[0];
+  const filename = `job-analysis-${timestamp}.json`;
+  
+  link.setAttribute("href", url);
+  link.setAttribute("download", filename);
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  showStatus(`Exported ${state.jobs.length} jobs to ${filename}`, "success");
+}
+
+function exportToExcel() {
+  // Create HTML table structure that Excel can import
+  const headers = ["Title", "Department", "Location", "Seniority", "Employment Type", "Source", "Posted Date", "URL"];
+  
+  let xlsContent = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+    <head>
+      <meta charset="utf-8">
+      <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+      <x:Name>Job Analysis</x:Name>
+      <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>
+      </x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+      <style>
+        table { border-collapse: collapse; width: 100%; }
+        th { background-color: #14b8a6; color: white; font-weight: bold; padding: 8px; border: 1px solid #ddd; }
+        td { padding: 8px; border: 1px solid #ddd; }
+        tr:nth-child(even) { background-color: #f9fafb; }
+      </style>
+    </head>
+    <body>
+      <table>
+        <thead>
+          <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
+        </thead>
+        <tbody>
+  `;
+
+  state.jobs.forEach(job => {
+    xlsContent += '<tr>';
+    xlsContent += `<td>${escapeHtml(job.title || "")}</td>`;
+    xlsContent += `<td>${escapeHtml(job.department || "Unassigned")}</td>`;
+    xlsContent += `<td>${escapeHtml(job.location || "Unspecified")}</td>`;
+    xlsContent += `<td>${escapeHtml(job.seniority || "Unspecified")}</td>`;
+    xlsContent += `<td>${escapeHtml(formatEmploymentType(job.employment_type))}</td>`;
+    xlsContent += `<td>${escapeHtml(job.source || "")}</td>`;
+    xlsContent += `<td>${escapeHtml(job.posted_date || "Unknown")}</td>`;
+    xlsContent += `<td>${job.url ? `<a href="${escapeHtml(job.url)}">${escapeHtml(job.url)}</a>` : ""}</td>`;
+    xlsContent += '</tr>';
+  });
+
+  xlsContent += '</tbody></table></body></html>';
+
+  const blob = new Blob([xlsContent], { type: "application/vnd.ms-excel;charset=utf-8;" });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  
+  const timestamp = new Date().toISOString().split('T')[0];
+  const filename = `job-analysis-${timestamp}.xls`;
+  
+  link.setAttribute("href", url);
+  link.setAttribute("download", filename);
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  showStatus(`Exported ${state.jobs.length} jobs to ${filename}`, "success");
+}
+
+function exportToPDF() {
+  showStatus("PDF export requires additional libraries. Exporting as CSV instead.", "info");
+  exportToCSVFormat();
+}
+
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return String(text).replace(/[&<>"']/g, m => map[m]);
 }
 
 function openSaveAnalysisModal() {

@@ -152,7 +152,12 @@
             <h3>Open roles</h3>
             <p>Filter by department, location, or seniority to refine the view.</p>
           </div>
-          <div class="filter-bar">
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="btn btn--secondary" id="export-csv-btn" style="display: none;">
+              <i class="fa-solid fa-download"></i>
+              Export Data
+            </button>
+            <div class="filter-bar">
             <label for="filter-department" class="visually-hidden">Filter by department</label>
             <select id="filter-department" class="filter-select">
               <option value="all">All Departments</option>
@@ -165,6 +170,7 @@
             <select id="filter-seniority" class="filter-select">
               <option value="all">All Seniority Levels</option>
             </select>
+            </div>
           </div>
         </header>
         <div class="table-wrapper">
