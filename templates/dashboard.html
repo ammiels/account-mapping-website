@@ -48,6 +48,10 @@
               <label class="visually-hidden" for="search-url">Job search URL</label>
               <input id="search-url" name="search-url" type="url" placeholder="https://boards.greenhouse.io/&hellip;" required>
               <button id="fetch-button" type="submit" class="btn btn--primary">Fetch Jobs</button>
+              <button id="clear-button" type="button" class="btn btn--secondary" style="display: none;">
+                <i class="fa-solid fa-xmark"></i>
+                Clear
+              </button>
             </div>
             <div class="form__meta">
               <button id="toggle-supported" type="button" class="btn btn--ghost">View supported platforms</button>
@@ -238,6 +242,10 @@
       <canvas id="expanded-chart"></canvas>
     </div>
     <footer class="modal__footer">
+      <button class="btn btn--secondary" id="chart-download-btn">
+        <i class="fa-solid fa-download"></i>
+        Download as PNG
+      </button>
       <button class="btn btn--primary" id="chart-modal-close">Close</button>
     </footer>
   </div>

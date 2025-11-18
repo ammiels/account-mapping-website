@@ -19,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
   cacheElements();
   bindInteractions();
   initCharts();
+  loadDashboardState();
   renderEmptyState();
 });
 
@@ -51,6 +52,7 @@ function cacheElements() {
   elements.chartModalClose = document.getElementById("chart-modal-close");
   elements.chartModalTitle = document.getElementById("chart-modal-title");
   elements.expandedChartCanvas = document.getElementById("expanded-chart");
+  elements.chartDownloadBtn = document.getElementById("chart-download-btn");
   elements.chartExpandButtons = document.querySelectorAll(".chart-expand-btn");
   elements.summaryTextPanel = document.getElementById("summary-text-panel");
   elements.summaryText = document.getElementById("summary-text");
@@ -62,6 +64,7 @@ function cacheElements() {
   elements.saveAnalysisConfirm = document.getElementById("save-analysis-confirm");
   elements.saveAnalysisCancel = document.getElementById("save-analysis-cancel");
   elements.exportCsvBtn = document.getElementById("export-csv-btn");
+  elements.clearButton = document.getElementById("clear-button");
   elements.paginationContainer = document.getElementById("pagination-container");
   elements.paginationInfo = document.getElementById("pagination-info");
   elements.paginationPrev = document.getElementById("pagination-prev");
@@ -101,6 +104,10 @@ function bindInteractions() {
     .filter(Boolean)
     .forEach((trigger) => trigger.addEventListener("click", closeChartModal));
 
+  if (elements.chartDownloadBtn) {
+    elements.chartDownloadBtn.addEventListener("click", downloadExpandedChart);
+  }
+
   [
     elements.filterDepartment,
     elements.filterLocation,
@@ -136,6 +143,10 @@ function bindInteractions() {
 
   if (elements.paginationNext) {
     elements.paginationNext.addEventListener("click", () => goToPage(state.pagination.currentPage + 1));
+  }
+
+  if (elements.clearButton) {
+    elements.clearButton.addEventListener("click", clearSearch);
   }
 }
 
@@ -180,6 +191,9 @@ async function handleFetchJobs(event) {
     resetFilters();
     populateFilterOptions(state.jobs);
     renderData(state.jobs);
+    
+    // Save to localStorage for persistence across pages
+    saveDashboardState(searchUrl, payload.platform || "Unknown");
   } catch (error) {
     updatePlatformIndicator("Unknown", false);
     clearDashboard();
@@ -406,6 +420,32 @@ function closeChartModal() {
   document.body.style.overflow = "";
 }
 
+function downloadExpandedChart() {
+  if (!elements.expandedChartCanvas) return;
+  
+  try {
+    elements.expandedChartCanvas.toBlob(blob => {
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      const timestamp = new Date().toISOString().split('T')[0];
+      const chartTitle = elements.chartModalTitle.textContent.toLowerCase().replace(/\s+/g, '-');
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${chartTitle}-${timestamp}.png`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      showStatus('Chart downloaded successfully', 'success');
+    }, 'image/png');
+  } catch (e) {
+    console.error('Failed to download chart:', e);
+    showStatus('Failed to download chart', 'error');
+  }
+}
+
 function setLoading(isLoading) {
   if (!elements.fetchButton) return;
   elements.fetchButton.disabled = isLoading;
@@ -439,6 +479,93 @@ function clearDashboard() {
   state.jobs = [];
   renderData([]);
   populateFilterOptions([]);
+}
+
+function saveDashboardState(searchUrl, platform) {
+  try {
+    const dashboardState = {
+      searchUrl: searchUrl,
+      platform: platform,
+      jobs: state.jobs,
+      timestamp: new Date().toISOString()
+    };
+    localStorage.setItem('dashboardState', JSON.stringify(dashboardState));
+  } catch (e) {
+    console.error('Failed to save dashboard state:', e);
+  }
+}
+
+function loadDashboardState() {
+  try {
+    const saved = localStorage.getItem('dashboardState');
+    if (saved) {
+      const dashboardState = JSON.parse(saved);
+      
+      // Check if data is not too old (optional: clear if older than 24 hours)
+      const savedTime = new Date(dashboardState.timestamp);
+      const now = new Date();
+      const hoursDiff = (now - savedTime) / (1000 * 60 * 60);
+      
+      if (hoursDiff < 24 && dashboardState.jobs && dashboardState.jobs.length > 0) {
+        // Restore state
+        state.jobs = dashboardState.jobs;
+        
+        // Restore UI
+        if (elements.searchInput) {
+          elements.searchInput.value = dashboardState.searchUrl || "";
+        }
+        updatePlatformIndicator(dashboardState.platform || "Unknown", true);
+        
+        // Render data
+        resetFilters();
+        populateFilterOptions(state.jobs);
+        renderData(state.jobs);
+        
+        // Show buttons that should be visible with data
+        if (elements.saveAnalysisBtn) {
+          elements.saveAnalysisBtn.style.display = "block";
+        }
+        if (elements.exportCsvBtn) {
+          elements.exportCsvBtn.style.display = "block";
+        }
+        if (elements.clearButton) {
+          elements.clearButton.style.display = "inline-flex";
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load dashboard state:', e);
+  }
+}
+
+function clearSearch() {
+  // Clear input
+  if (elements.searchInput) {
+    elements.searchInput.value = "";
+  }
+  
+  // Reset platform indicator
+  updatePlatformIndicator("None", false);
+  
+  // Clear status
+  showStatus("", "info");
+  
+  // Clear all data
+  clearDashboard();
+  
+  // Reset pagination
+  state.pagination.currentPage = 1;
+  
+  // Hide clear button
+  if (elements.clearButton) {
+    elements.clearButton.style.display = "none";
+  }
+  
+  // Clear from localStorage
+  localStorage.removeItem('dashboardState');
+  
+  showStatus("Dashboard cleared", "success");
+  setTimeout(() => showStatus("", "info"), 2000);
 }
 
 function resetFilters() {
@@ -836,6 +963,9 @@ function renderEmptyState(jobs = []) {
   if (elements.exportCsvBtn) {
     elements.exportCsvBtn.style.display = hasData ? "block" : "none";
   }
+  if (elements.clearButton) {
+    elements.clearButton.style.display = hasData ? "inline-flex" : "none";
+  }
 }
 
 function exportToCSV() {
@@ -994,53 +1124,53 @@ function exportToExcel() {
     `;
   }
 
-  // Add charts if enabled (as ASCII/text representation since Excel HTML doesn't support embedded images well)
+  // Add charts if enabled - show text data summary
   if (includeCharts && state.summary) {
-    xlsContent += `
-      <div style="margin: 30px 0; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0;">
-        <h2 style="color: #0f172a; margin-bottom: 15px;">Chart Data Summary</h2>
-    `;
-    
-    // Department breakdown
-    if (state.summary.byDepartment) {
-      xlsContent += '<div style="margin-bottom: 20px;"><strong>Roles by Department:</strong><br/>';
-      const deptEntries = Object.entries(state.summary.byDepartment)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10);
-      deptEntries.forEach(([dept, count]) => {
-        const percentage = Math.round((count / state.jobs.length) * 100);
-        xlsContent += `${dept}: ${count} roles (${percentage}%)<br/>`;
-      });
-      xlsContent += '</div>';
-    }
+      xlsContent += `
+        <div style="margin: 30px 0; padding: 20px; background-color: #f8fafc; border: 1px solid #e2e8f0;">
+          <h2 style="color: #0f172a; margin-bottom: 15px;">Chart Data Summary</h2>
+      `;
+      
+      // Department breakdown
+      if (state.summary.byDepartment) {
+        xlsContent += '<div style="margin-bottom: 20px;"><strong>Roles by Department:</strong><br/>';
+        const deptEntries = Object.entries(state.summary.byDepartment)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 10);
+        deptEntries.forEach(([dept, count]) => {
+          const percentage = Math.round((count / state.jobs.length) * 100);
+          xlsContent += `${dept}: ${count} roles (${percentage}%)<br/>`;
+        });
+        xlsContent += '</div>';
+      }
 
-    // Seniority breakdown
-    if (state.summary.bySeniority) {
-      xlsContent += '<div style="margin-bottom: 20px;"><strong>Seniority Mix:</strong><br/>';
-      const seniorityEntries = Object.entries(state.summary.bySeniority)
-        .sort((a, b) => b[1] - a[1]);
-      seniorityEntries.forEach(([level, count]) => {
-        const percentage = Math.round((count / state.jobs.length) * 100);
-        xlsContent += `${level}: ${count} roles (${percentage}%)<br/>`;
-      });
-      xlsContent += '</div>';
-    }
+      // Seniority breakdown
+      if (state.summary.bySeniority) {
+        xlsContent += '<div style="margin-bottom: 20px;"><strong>Seniority Mix:</strong><br/>';
+        const seniorityEntries = Object.entries(state.summary.bySeniority)
+          .sort((a, b) => b[1] - a[1]);
+        seniorityEntries.forEach(([level, count]) => {
+          const percentage = Math.round((count / state.jobs.length) * 100);
+          xlsContent += `${level}: ${count} roles (${percentage}%)<br/>`;
+        });
+        xlsContent += '</div>';
+      }
 
-    // Location breakdown
-    if (state.summary.byLocation) {
-      xlsContent += '<div style="margin-bottom: 20px;"><strong>Top Locations:</strong><br/>';
-      const locationEntries = Object.entries(state.summary.byLocation)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10);
-      locationEntries.forEach(([loc, count]) => {
-        const percentage = Math.round((count / state.jobs.length) * 100);
-        xlsContent += `${loc}: ${count} roles (${percentage}%)<br/>`;
-      });
+      // Location breakdown
+      if (state.summary.byLocation) {
+        xlsContent += '<div style="margin-bottom: 20px;"><strong>Top Locations:</strong><br/>';
+        const locationEntries = Object.entries(state.summary.byLocation)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 10);
+        locationEntries.forEach(([loc, count]) => {
+          const percentage = Math.round((count / state.jobs.length) * 100);
+          xlsContent += `${loc}: ${count} roles (${percentage}%)<br/>`;
+        });
+        xlsContent += '</div>';
+      }
+      
       xlsContent += '</div>';
     }
-    
-    xlsContent += '</div>';
-  }
 
   xlsContent += `
       <h2 style="color: #0f172a; margin: 30px 0 20px 0;">Job Listings</h2>
@@ -1081,17 +1211,6 @@ function exportToExcel() {
   document.body.removeChild(link);
 
   showStatus(`Exported ${state.jobs.length} jobs to ${filename}`, "success");
-}
-
-function escapeHtml(text) {
-  const map = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;'
-  };
-  return String(text).replace(/[&<>"']/g, m => map[m]);
 }
 
 function openSaveAnalysisModal() {
