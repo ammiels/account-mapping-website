@@ -898,18 +898,51 @@ function renderHiringSummary(jobs) {
   // Extract common skills/keywords from job titles
   const skillKeywords = extractSkills(jobs);
   
-  // Generate summary
+  // Generate detailed summary
   setTimeout(() => {
-    let summary = `<p>The company is actively hiring <strong>${jobs.length} role${jobs.length !== 1 ? 's' : ''}</strong>`;
+    let summary = '';
+    
+    // Header with total count
+    summary += `<p>The company is actively hiring <strong>${jobs.length} role${jobs.length !== 1 ? 's' : ''}</strong>`;
     
     if (topDepartments.length > 0) {
       const deptNames = topDepartments.map(([name, count]) => 
-        `${name} (${count} role${count !== 1 ? 's' : ''})`
+        `<strong>${name} (${count} role${count !== 1 ? 's' : ''})</strong>`
       );
-      summary += ` with primary focus on <strong>${deptNames.join(', ')}</strong>`;
+      summary += ` with primary focus on ${deptNames.join(', ')}`;
     }
     summary += '.</p>';
 
+    // Department breakdown with details
+    if (Object.keys(byDepartment).length > 1) {
+      summary += `<p><strong>Roles by Department:</strong></p><ul>`;
+      Object.entries(byDepartment)
+        .filter(([dept]) => dept !== 'Unassigned')
+        .sort((a, b) => b[1] - a[1])
+        .forEach(([dept, count]) => {
+          summary += `<li><strong>${dept}:</strong> ${count} role${count !== 1 ? 's' : ''}`;
+          
+          // Find sample roles for this department
+          const deptJobs = jobs.filter(job => job.department === dept).slice(0, 2);
+          if (deptJobs.length > 0) {
+            const roleExamples = deptJobs.map(job => {
+              let details = job.title;
+              if (job.employment_type && job.employment_type.toLowerCase().includes('contract')) {
+                details += ' (FTC)';
+              }
+              if (job.location) {
+                details += `, ${job.location}`;
+              }
+              return details;
+            }).join('; ');
+            summary += ` — e.g., ${roleExamples}`;
+          }
+          summary += '</li>';
+        });
+      summary += '</ul>';
+    }
+
+    // Seniority distribution
     if (seniorityList.length > 0) {
       summary += `<p><strong>Seniority Distribution:</strong> `;
       const seniorityText = seniorityList.map(([level, count]) => {
@@ -919,16 +952,49 @@ function renderHiringSummary(jobs) {
       summary += `${seniorityText}.</p>`;
     }
 
+    // Location breakdown
     if (topLocations.length > 0) {
-      summary += `<p><strong>Key Hiring Locations:</strong> ${topLocations.map(([loc]) => loc).join(', ')}`;
+      summary += `<p><strong>Locations:</strong></p><ul>`;
+      topLocations.forEach(([loc, count]) => {
+        summary += `<li>${loc}: ${count} role${count !== 1 ? 's' : ''}</li>`;
+      });
+      
       const remoteCount = jobs.filter(job => job.is_remote).length;
       if (remoteCount > 0) {
         const remotePercent = Math.round((remoteCount / jobs.length) * 100);
-        summary += `, with ${remotePercent}% offering remote work options`;
+        const onsiteCount = jobs.length - remoteCount;
+        summary += `<li>Remote: ${remoteCount} / On-site: ${onsiteCount} (${remotePercent}% remote)</li>`;
       }
-      summary += '.</p>';
+      summary += '</ul>';
     }
 
+    // Recruitment focus
+    summary += `<p><strong>Recruitment Focus:</strong><br>`;
+    if (topDepartments.length > 0) {
+      const focusAreas = topDepartments.map(([name]) => name).join(', ');
+      summary += `Primarily focused on ${focusAreas} roles`;
+      
+      if (topLocations.length > 0) {
+        const mainLocation = topLocations[0][0];
+        summary += `, with most positions based in ${mainLocation}`;
+      }
+      summary += '. ';
+    }
+    
+    const ftcCount = jobs.filter(job => 
+      job.employment_type && (
+        job.employment_type.toLowerCase().includes('contract') ||
+        job.employment_type.toLowerCase().includes('fixed')
+      )
+    ).length;
+    
+    if (ftcCount > 0) {
+      summary += `Includes ${ftcCount} fixed-term contract${ftcCount !== 1 ? 's' : ''} (FTC). `;
+    }
+    
+    summary += `</p>`;
+
+    // Skills keywords
     if (skillKeywords.length > 0) {
       summary += `<p><strong>In-Demand Skills & Keywords:</strong> ${skillKeywords.join(', ')}.</p>`;
     }
