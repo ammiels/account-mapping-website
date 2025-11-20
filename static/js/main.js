@@ -21,7 +21,21 @@ document.addEventListener("DOMContentLoaded", () => {
   initCharts();
   loadDashboardState();
   renderEmptyState();
+  setupThemeListener();
 });
+
+/**
+ * Listen for theme changes and reinitialize charts
+ */
+function setupThemeListener() {
+  document.body.addEventListener('themeChanged', function() {
+    // Only reinitialize charts if we have job data
+    if (state.jobs && state.jobs.length > 0) {
+      initCharts();
+      renderCharts(state.jobs);
+    }
+  });
+}
 
 function cacheElements() {
   elements.form = document.getElementById("job-search-form");
