@@ -475,6 +475,104 @@ def fetch_workable_jobs(search_url: str) -> List[JobRecord]:
     return jobs
 
 
+def fetch_lever_jobs(search_url: str) -> List[JobRecord]:
+    """Fetch publicly listed Lever openings from the provided URL."""
+    if not robots_allows(search_url):
+        logging.info("Robots.txt disallows fetching %s", search_url)
+        return []
+
+    try:
+        response = requests.get(
+            search_url,
+            headers={"User-Agent": USER_AGENT},
+            timeout=10,
+        )
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        logging.warning("Unable to fetch Lever URL %s: %s", search_url, exc)
+        return []
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    jobs: List[JobRecord] = []
+
+    # Lever uses <div class="posting"> for each job listing
+    postings = soup.find_all(class_="posting")
+    
+    for posting in postings:
+        # Find the job title and URL
+        title_elem = posting.find("h5", {"data-qa": "posting-name"})
+        if not title_elem:
+            continue
+            
+        title = title_elem.get_text(strip=True)
+        if not title:
+            continue
+        
+        # Get the link
+        link_elem = posting.find("a", class_="posting-title")
+        job_url = link_elem.get("href", "") if link_elem else ""
+        if not job_url:
+            continue
+        
+        # Extract location
+        location_elem = posting.find(class_="location")
+        location = location_elem.get_text(strip=True) if location_elem else None
+        
+        # Extract commitment/employment type
+        commitment_elem = posting.find(class_="commitment")
+        commitment_text = commitment_elem.get_text(strip=True).lower() if commitment_elem else ""
+        
+        # Try to find department from parent grouping or default to General
+        department = "General"
+        parent_group = posting.find_parent(class_="postings-group")
+        if parent_group:
+            dept_header = parent_group.find_previous_sibling("h3")
+            if dept_header:
+                department = dept_header.get_text(strip=True)
+        
+        # Normalize the data
+        seniority = normalize_seniority(title)
+        
+        # Parse employment type from commitment
+        if "full" in commitment_text or "permanent" in commitment_text:
+            employment_type = "full_time"
+        elif "part" in commitment_text:
+            employment_type = "part_time"
+        elif "contract" in commitment_text or "fixed" in commitment_text or "temporary" in commitment_text:
+            employment_type = "contract"
+        elif "intern" in commitment_text:
+            employment_type = "internship"
+        else:
+            employment_type = normalize_employment_type(title.lower())
+        
+        # Check workplace type for remote
+        workplace_elem = posting.find(class_="workplaceTypes")
+        workplace_text = workplace_elem.get_text(strip=True).lower() if workplace_elem else ""
+        
+        location_text = (location or "").lower()
+        is_remote = (
+            "remote" in workplace_text or 
+            "hybrid" in workplace_text or
+            detect_remote_role(location_text, title.lower())
+        )
+        
+        jobs.append(
+            JobRecord(
+                title=title,
+                department=department,
+                location=location,
+                seniority=seniority,
+                employment_type=employment_type,
+                source="Lever",
+                posted_date=None,
+                url=job_url,
+                is_remote=is_remote,
+            )
+        )
+    
+    return jobs
+
+
 def fetch_jobs(search_url: str, platform: str) -> Tuple[List[JobRecord], Optional[str]]:
     """Fetch job records for a given platform, returning jobs and an info message."""
     if platform == "Greenhouse":
@@ -485,6 +583,11 @@ def fetch_jobs(search_url: str, platform: str) -> Tuple[List[JobRecord], Optiona
     if platform == "Workable":
         jobs = fetch_workable_jobs(search_url)
         message = None if jobs else "No roles found on the provided Workable page."
+        return jobs, message
+    
+    if platform == "Lever":
+        jobs = fetch_lever_jobs(search_url)
+        message = None if jobs else "No roles found on the provided Lever page."
         return jobs, message
 
     placeholder = f"Support for {platform} is coming soon."
