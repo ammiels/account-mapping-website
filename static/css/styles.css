@@ -302,13 +302,18 @@ a:hover {
 
 .topbar__titles h2 {
   margin: 0;
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-text-heading);
+  line-height: 1.2;
 }
 
 .topbar__titles p {
-  margin: 6px 0 0;
+  margin: 8px 0 0;
   color: var(--color-text-muted);
+  font-size: 15px;
+  line-height: 1.5;
 }
 
 .topbar__profile {
@@ -353,10 +358,10 @@ a:hover {
 }
 
 .panel {
-  background: var(--color-panel);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius-md);
-  padding: 22px 24px;
+  background: var(--overview-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 24px;
   box-shadow: var(--shadow-soft);
   transition: background 0.3s ease, border-color 0.3s ease;
 }
@@ -373,6 +378,15 @@ a:hover {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
+}
+
+.panel__header h3.section-title {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-accent-blue);
+  transition: color 0.3s ease;
 }
 
 .panel__header p {
@@ -774,7 +788,7 @@ a:hover {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-size: 12px;
-  color: var(--color-text-muted);
+  color: var(--color-accent);
 }
 
 #jobs-table tbody tr:nth-child(even) {
