@@ -4,13 +4,15 @@
  */
 
 // Immediately apply saved theme to prevent flash of unstyled content
+// This runs as soon as the script is loaded in the head
 (function() {
   try {
     const savedTheme = localStorage.getItem('theme') || 'dark';
-    document.body.className = 'theme-' + savedTheme;
+    // Set on html element which is always available
+    document.documentElement.className = 'theme-' + savedTheme;
   } catch (error) {
     console.warn('Failed to load theme preference:', error);
-    document.body.className = 'theme-dark';
+    document.documentElement.className = 'theme-dark';
   }
 })();
 
@@ -46,12 +48,12 @@ document.addEventListener('DOMContentLoaded', function() {
    */
   function setTheme(newTheme) {
     try {
-      document.body.className = 'theme-' + newTheme;
+      document.documentElement.className = 'theme-' + newTheme;
       localStorage.setItem('theme', newTheme);
       updateThemeUI(newTheme);
       
       // Dispatch custom event for other components to listen to
-      document.body.dispatchEvent(new CustomEvent('themeChanged', {
+      document.documentElement.dispatchEvent(new CustomEvent('themeChanged', {
         detail: { theme: newTheme }
       }));
     } catch (error) {
@@ -60,12 +62,12 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   // Initialize UI based on current theme
-  const currentTheme = document.body.classList.contains('theme-light') ? 'light' : 'dark';
+  const currentTheme = document.documentElement.classList.contains('theme-light') ? 'light' : 'dark';
   updateThemeUI(currentTheme);
   
   // Handle theme toggle clicks
   themeToggle.addEventListener('click', function() {
-    const isLight = document.body.classList.contains('theme-light');
+    const isLight = document.documentElement.classList.contains('theme-light');
     const newTheme = isLight ? 'dark' : 'light';
     setTheme(newTheme);
   });
@@ -73,7 +75,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Expose theme API for other modules
   window.ThemeManager = {
     getCurrentTheme: function() {
-      return document.body.classList.contains('theme-light') ? 'light' : 'dark';
+      return document.documentElement.classList.contains('theme-light') ? 'light' : 'dark';
     },
     setTheme: setTheme
   };

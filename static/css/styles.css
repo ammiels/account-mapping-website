@@ -6,7 +6,7 @@
 }
 
 /* Dark mode colors (default) */
-body.theme-dark {
+html.theme-dark {
   --color-bg: #0b0f18;
   --color-panel: #111827;
   --color-panel-alt: #141c2a;
@@ -49,7 +49,7 @@ body.theme-dark {
 }
 
 /* Light mode colors */
-body.theme-light {
+html.theme-light {
   --color-bg: #f1f5f9;
   --color-panel: #ffffff;
   --color-panel-alt: #ffffff;
@@ -106,11 +106,11 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-body.theme-dark {
+html.theme-dark {
   background: radial-gradient(circle at top, rgba(56, 189, 248, 0.08), transparent 60%), var(--color-bg);
 }
 
-body.theme-light {
+html.theme-light {
   background: var(--color-bg);
 }
 

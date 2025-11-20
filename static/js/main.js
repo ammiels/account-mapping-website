@@ -28,7 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
  * Listen for theme changes and reinitialize charts
  */
 function setupThemeListener() {
-  document.body.addEventListener('themeChanged', function() {
+  document.documentElement.addEventListener('themeChanged', function() {
     // Only reinitialize charts if we have job data
     if (state.jobs && state.jobs.length > 0) {
       initCharts();
@@ -230,18 +230,18 @@ function initCharts() {
     return;
   }
 
-  // Detect current theme - light mode has theme-light class
-  const isLightMode = document.body.classList.contains('theme-light');
+  // Detect current theme - check html element for theme-light class
+  const isLightMode = document.documentElement.classList.contains('theme-light');
   
   const chartDefaults = {
-    color: "#94a3b8",
-    grid: "rgba(148, 163, 184, 0.12)",
+    color: isLightMode ? "#64748b" : "#94a3b8",
+    grid: isLightMode ? "rgba(15, 23, 42, 0.1)" : "rgba(148, 163, 184, 0.12)",
     dataset: {
       background: "rgba(20, 184, 166, 0.35)",
       border: "#14b8a6",
       hover: "rgba(56, 189, 248, 0.55)",
     },
-    donutBorder: isLightMode ? "rgba(255, 255, 255, 0.8)" : "rgba(15, 23, 42, 0.85)",
+    donutBorder: isLightMode ? "rgba(255, 255, 255, 0.95)" : "rgba(15, 23, 42, 0.85)",
   };
 
   const deptCtx = document.getElementById("department-chart");
