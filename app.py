@@ -85,16 +85,19 @@ def fetch_greenhouse_jobs(search_url: str) -> List[JobRecord]:
 
     html = response.text
 
-    remix_jobs = parse_greenhouse_remix_jobs(html, search_url)
+    # Try modern Remix-based boards first (with pagination)
+    remix_jobs = parse_greenhouse_remix_jobs_all_pages(html, search_url)
     if remix_jobs:
         return remix_jobs
 
+    # Fallback to legacy DOM parsing
     soup = BeautifulSoup(html, "html.parser")
     return parse_greenhouse_dom_jobs(soup, search_url)
 
 
-def parse_greenhouse_remix_jobs(html: str, base_url: str) -> List[JobRecord]:
-    """Parse job posts from the modern Remix-powered Greenhouse boards."""
+def parse_greenhouse_remix_jobs_all_pages(html: str, base_url: str) -> List[JobRecord]:
+    """Parse all job posts from Remix-powered Greenhouse boards, handling pagination."""
+    # First, try to find the API endpoint from the page
     match = re.search(r"window\.__remixContext\s*=\s*(\{.*?\})\s*;", html, re.DOTALL)
     if not match:
         return []
@@ -104,7 +107,8 @@ def parse_greenhouse_remix_jobs(html: str, base_url: str) -> List[JobRecord]:
     except json.JSONDecodeError as exc:
         logging.debug("Unable to decode Greenhouse remix payload: %s", exc)
         return []
-
+    
+    # Try to get pagination info
     loader_data = context.get("state", {}).get("loaderData", {})
     board_payload: Optional[Dict[str, object]] = None
     if isinstance(loader_data, dict):
@@ -119,11 +123,79 @@ def parse_greenhouse_remix_jobs(html: str, base_url: str) -> List[JobRecord]:
         return []
 
     job_posts = board_payload.get("jobPosts", {})
+    
+    # Get pagination info (different Greenhouse boards use different field names)
+    total_count = job_posts.get("total") or job_posts.get("totalCount", 0)
+    total_pages = job_posts.get("total_pages", 1)
+    current_page = job_posts.get("page", 1)
     data = job_posts.get("data") if isinstance(job_posts, dict) else None
+    
     if not isinstance(data, list):
         return []
+    
+    all_jobs = []
+    
+    # Parse initial page jobs
+    all_jobs.extend(parse_greenhouse_job_entries(data, base_url))
+    
+    # If there are more pages, fetch them
+    if total_pages > 1:
+        parsed = urlparse(base_url)
+        # Remove existing page parameter if present
+        base_url_no_page = base_url.split('?')[0]
+        
+        for page_num in range(2, total_pages + 1):
+            try:
+                page_url = f"{base_url_no_page}?page={page_num}"
+                response = requests.get(
+                    page_url,
+                    headers={"User-Agent": USER_AGENT},
+                    timeout=10,
+                )
+                if response.status_code != 200:
+                    logging.debug(f"Failed to fetch page {page_num}, status: {response.status_code}")
+                    break
+                
+                # Parse the JSON from the next page
+                page_match = re.search(r"window\.__remixContext\s*=\s*(\{.*?\})\s*;", response.text, re.DOTALL)
+                if not page_match:
+                    break
+                
+                page_context = json.loads(page_match.group(1))
+                page_loader = page_context.get("state", {}).get("loaderData", {})
+                page_board = page_loader.get("routes/$url_token")
+                if not page_board:
+                    for payload in page_loader.values():
+                        if isinstance(payload, dict) and "jobPosts" in payload:
+                            page_board = payload
+                            break
+                
+                if not page_board:
+                    break
+                
+                page_jobs = page_board.get("jobPosts", {})
+                page_data = page_jobs.get("data", [])
+                
+                if not page_data:
+                    break
+                
+                all_jobs.extend(parse_greenhouse_job_entries(page_data, base_url))
+                
+                # Safety check to avoid infinite loops
+                if page_num > 20:  # Max 20 pages = 1000 jobs
+                    break
+                    
+            except (requests.RequestException, json.JSONDecodeError) as exc:
+                logging.debug(f"Unable to fetch page {page_num}: {exc}")
+                break
+    
+    return all_jobs
 
+
+def parse_greenhouse_job_entries(data: List[Dict], base_url: str) -> List[JobRecord]:
+    """Parse a list of Greenhouse job entries into JobRecord objects."""
     jobs: List[JobRecord] = []
+    
     for entry in data:
         if not isinstance(entry, dict):
             continue
@@ -169,7 +241,7 @@ def parse_greenhouse_remix_jobs(html: str, base_url: str) -> List[JobRecord]:
                 is_remote=is_remote,
             )
         )
-
+    
     return jobs
 
 
