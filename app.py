@@ -25,6 +25,7 @@ PLATFORM_PATTERNS: List[Tuple[str, str]] = [
     ("greenhouse.io", "Greenhouse"),
     ("lever.co", "Lever"),
     ("workable.com", "Workable"),
+    ("myworkdayjobs.com", "Workday"),
     ("indeed.com", "Indeed"),
 ]
 
@@ -573,6 +574,118 @@ def fetch_lever_jobs(search_url: str) -> List[JobRecord]:
     return jobs
 
 
+def fetch_workday_jobs(search_url: str) -> List[JobRecord]:
+    """Fetch publicly listed Workday openings from the provided URL."""
+    # Extract company and site identifiers from URL
+    # Format: https://{company}.wd{X}.myworkdayjobs.com/{site-name}
+    parsed = urlparse(search_url)
+    hostname = parsed.netloc
+    path_parts = [p for p in parsed.path.split('/') if p]
+    
+    if not path_parts or not hostname:
+        logging.warning("Unable to parse Workday URL: %s", search_url)
+        return []
+    
+    site_name = path_parts[0]
+    
+    # Extract company name and workday instance from hostname
+    # e.g., lloyds.wd3.myworkdayjobs.com -> company: lloyds, instance: wd3
+    host_parts = hostname.split('.')
+    if len(host_parts) < 3:
+        logging.warning("Invalid Workday hostname format: %s", hostname)
+        return []
+    
+    company = host_parts[0]
+    
+    # Construct the API endpoint
+    api_url = f"https://{hostname}/wday/cxs/{company}/{site_name}/jobs"
+    
+    jobs: List[JobRecord] = []
+    offset = 0
+    limit = 20
+    
+    try:
+        # Fetch all pages
+        while True:
+            response = requests.post(
+                api_url,
+                json={"limit": limit, "offset": offset, "appliedFacets": {}, "searchText": ""},
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "User-Agent": USER_AGENT
+                },
+                timeout=10,
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            job_postings = data.get("jobPostings", [])
+            total = data.get("total", 0)
+            
+            if not job_postings:
+                break
+            
+            for job_data in job_postings:
+                title = (job_data.get("title") or "").strip()
+                external_path = job_data.get("externalPath", "")
+                
+                if not title:
+                    continue
+                
+                # Construct full job URL
+                job_url = f"https://{hostname}{external_path}" if external_path else search_url
+                
+                # Extract location
+                location = (job_data.get("locationsText") or "").strip() or None
+                
+                # Extract posted date
+                posted_on = job_data.get("postedOn")
+                
+                # Job ID from bulletFields
+                bullet_fields = job_data.get("bulletFields", [])
+                job_id = bullet_fields[0] if bullet_fields else None
+                
+                # Workday doesn't provide department info in the listing API
+                # Default to General
+                department = "General"
+                
+                # Normalize the data
+                seniority = normalize_seniority(title)
+                employment_type = normalize_employment_type(title.lower())
+                
+                location_text = (location or "").lower()
+                is_remote = detect_remote_role(location_text, title.lower())
+                
+                jobs.append(
+                    JobRecord(
+                        title=title,
+                        department=department,
+                        location=location,
+                        seniority=seniority,
+                        employment_type=employment_type,
+                        source="Workday",
+                        posted_date=posted_on,
+                        url=job_url,
+                        is_remote=is_remote,
+                    )
+                )
+            
+            # Check if we've fetched all jobs
+            offset += len(job_postings)
+            if offset >= total:
+                break
+            
+            # Safety check to avoid infinite loops
+            if offset > 1000:
+                break
+                
+    except (requests.RequestException, json.JSONDecodeError) as exc:
+        logging.warning("Unable to fetch Workday jobs: %s", exc)
+    
+    return jobs
+
+
 def fetch_jobs(search_url: str, platform: str) -> Tuple[List[JobRecord], Optional[str]]:
     """Fetch job records for a given platform, returning jobs and an info message."""
     if platform == "Greenhouse":
@@ -588,6 +701,11 @@ def fetch_jobs(search_url: str, platform: str) -> Tuple[List[JobRecord], Optiona
     if platform == "Lever":
         jobs = fetch_lever_jobs(search_url)
         message = None if jobs else "No roles found on the provided Lever page."
+        return jobs, message
+    
+    if platform == "Workday":
+        jobs = fetch_workday_jobs(search_url)
+        message = None if jobs else "No roles found on the provided Workday page."
         return jobs, message
 
     placeholder = f"Support for {platform} is coming soon."
