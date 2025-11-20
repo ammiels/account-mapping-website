@@ -300,11 +300,119 @@ def serialize_jobs(jobs: List[JobRecord]) -> List[Dict[str, object]]:
     return [asdict(job) for job in jobs]
 
 
+def fetch_workable_jobs(search_url: str) -> List[JobRecord]:
+    """Fetch publicly listed Workable openings from the provided URL."""
+    # Extract company subdomain from URL (e.g., "riverlane" from "https://apply.workable.com/riverlane/")
+    parsed = urlparse(search_url)
+    path_parts = [p for p in parsed.path.split('/') if p]
+    
+    if not path_parts:
+        logging.warning("Unable to extract company name from Workable URL: %s", search_url)
+        return []
+    
+    company_name = path_parts[0]
+    
+    # Workable uses a public API endpoint for job listings
+    api_url = f"https://apply.workable.com/api/v1/widget/accounts/{company_name}"
+    
+    try:
+        response = requests.get(
+            api_url,
+            headers={"User-Agent": USER_AGENT},
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+    except requests.RequestException as exc:
+        logging.warning("Unable to fetch Workable API %s: %s", api_url, exc)
+        return []
+    except json.JSONDecodeError as exc:
+        logging.warning("Unable to parse Workable API response: %s", exc)
+        return []
+    
+    job_data = data.get("jobs", [])
+    if not isinstance(job_data, list):
+        return []
+    
+    jobs: List[JobRecord] = []
+    
+    for job in job_data:
+        if not isinstance(job, dict):
+            continue
+        
+        title = (job.get("title") or "").strip()
+        job_url = job.get("url") or job.get("shortlink")
+        
+        if not title or not job_url:
+            continue
+        
+        # Extract location from locations array or fallback to city
+        locations_list = job.get("locations", [])
+        if locations_list and isinstance(locations_list, list):
+            loc = locations_list[0]
+            city = loc.get("city", "")
+            country = loc.get("country", "")
+            location = f"{city}, {country}" if city and country else (city or country or None)
+        else:
+            city = job.get("city", "")
+            country = job.get("country", "")
+            location = f"{city}, {country}" if city and country else (city or country or None)
+        
+        department = (job.get("department") or "").strip() or "General"
+        
+        # Parse employment type
+        employment_type_raw = (job.get("employment_type") or "").lower()
+        if "full" in employment_type_raw:
+            employment_type = "full_time"
+        elif "part" in employment_type_raw:
+            employment_type = "part_time"
+        elif "contract" in employment_type_raw:
+            employment_type = "contract"
+        else:
+            employment_type = None
+        
+        # Get seniority from experience field or infer from title
+        experience = job.get("experience", "")
+        if experience:
+            seniority = normalize_seniority(experience) or normalize_seniority(title)
+        else:
+            seniority = normalize_seniority(title)
+        
+        # Check if telecommuting/remote
+        is_remote = job.get("telecommuting", False)
+        if not is_remote:
+            location_text = (location or "").lower()
+            is_remote = detect_remote_role(location_text, title.lower())
+        
+        posted_date = job.get("published_on")
+        
+        jobs.append(
+            JobRecord(
+                title=title,
+                department=department,
+                location=location,
+                seniority=seniority,
+                employment_type=employment_type,
+                source="Workable",
+                posted_date=posted_date,
+                url=job_url,
+                is_remote=is_remote,
+            )
+        )
+    
+    return jobs
+
+
 def fetch_jobs(search_url: str, platform: str) -> Tuple[List[JobRecord], Optional[str]]:
     """Fetch job records for a given platform, returning jobs and an info message."""
     if platform == "Greenhouse":
         jobs = fetch_greenhouse_jobs(search_url)
         message = None if jobs else "No roles found on the provided Greenhouse page."
+        return jobs, message
+    
+    if platform == "Workable":
+        jobs = fetch_workable_jobs(search_url)
+        message = None if jobs else "No roles found on the provided Workable page."
         return jobs, message
 
     placeholder = f"Support for {platform} is coming soon."

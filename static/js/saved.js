@@ -1,5 +1,7 @@
 const elements = {};
 let currentAnalysisId = null;
+let allAnalyses = [];
+let filteredAnalyses = [];
 
 document.addEventListener("DOMContentLoaded", () => {
   cacheElements();
@@ -10,6 +12,11 @@ document.addEventListener("DOMContentLoaded", () => {
 function cacheElements() {
   elements.savedEmpty = document.getElementById("saved-empty");
   elements.savedGrid = document.getElementById("saved-grid");
+  elements.searchBar = document.getElementById("saved-search-bar");
+  elements.searchInput = document.getElementById("saved-search-input");
+  elements.searchClearBtn = document.getElementById("search-clear-btn");
+  elements.filterPlatform = document.getElementById("filter-platform");
+  elements.filterSort = document.getElementById("filter-sort");
   elements.viewModal = document.getElementById("view-analysis-modal");
   elements.viewBackdrop = document.getElementById("view-analysis-backdrop");
   elements.viewClose = document.getElementById("analysis-modal-close");
@@ -33,6 +40,18 @@ function bindInteractions() {
 
   elements.deleteBtn.addEventListener("click", deleteCurrentAnalysis);
 
+  // Search and filter listeners
+  if (elements.searchInput) {
+    elements.searchInput.addEventListener("input", handleSearch);
+    elements.searchClearBtn.addEventListener("click", clearSearch);
+  }
+  if (elements.filterPlatform) {
+    elements.filterPlatform.addEventListener("change", applyFilters);
+  }
+  if (elements.filterSort) {
+    elements.filterSort.addEventListener("change", applyFilters);
+  }
+
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !elements.viewModal.hasAttribute("hidden")) {
       closeViewModal();
@@ -41,16 +60,102 @@ function bindInteractions() {
 }
 
 function loadSavedAnalyses() {
-  const analyses = getSavedAnalyses();
+  allAnalyses = getSavedAnalyses();
   
-  if (analyses.length === 0) {
+  if (allAnalyses.length === 0) {
     elements.savedEmpty.style.display = "block";
     elements.savedGrid.style.display = "none";
+    elements.searchBar.style.display = "none";
   } else {
     elements.savedEmpty.style.display = "none";
     elements.savedGrid.style.display = "grid";
-    renderAnalysesGrid(analyses);
+    elements.searchBar.style.display = "flex";
+    populatePlatformFilter();
+    filteredAnalyses = [...allAnalyses];
+    applyFilters();
   }
+}
+
+function populatePlatformFilter() {
+  const platforms = new Set();
+  allAnalyses.forEach(analysis => {
+    if (analysis.platform) {
+      platforms.add(analysis.platform);
+    }
+  });
+  
+  elements.filterPlatform.innerHTML = '<option value="all">All Platforms</option>';
+  Array.from(platforms).sort().forEach(platform => {
+    const option = document.createElement('option');
+    option.value = platform;
+    option.textContent = platform;
+    elements.filterPlatform.appendChild(option);
+  });
+}
+
+function handleSearch() {
+  const searchTerm = elements.searchInput.value.trim();
+  
+  if (searchTerm) {
+    elements.searchClearBtn.style.display = "block";
+  } else {
+    elements.searchClearBtn.style.display = "none";
+  }
+  
+  applyFilters();
+}
+
+function clearSearch() {
+  elements.searchInput.value = "";
+  elements.searchClearBtn.style.display = "none";
+  applyFilters();
+}
+
+function applyFilters() {
+  const searchTerm = elements.searchInput.value.toLowerCase().trim();
+  const platformFilter = elements.filterPlatform.value;
+  const sortOption = elements.filterSort.value;
+  
+  // Filter by search term
+  filteredAnalyses = allAnalyses.filter(analysis => {
+    if (searchTerm) {
+      const companyName = (analysis.companyName || "").toLowerCase();
+      const platform = (analysis.platform || "").toLowerCase();
+      const departments = (analysis.topDepartments || []).map(d => d[0].toLowerCase()).join(" ");
+      
+      return companyName.includes(searchTerm) || 
+             platform.includes(searchTerm) || 
+             departments.includes(searchTerm);
+    }
+    return true;
+  });
+  
+  // Filter by platform
+  if (platformFilter !== "all") {
+    filteredAnalyses = filteredAnalyses.filter(analysis => analysis.platform === platformFilter);
+  }
+  
+  // Sort
+  filteredAnalyses.sort((a, b) => {
+    switch (sortOption) {
+      case "date-desc":
+        return new Date(b.savedAt) - new Date(a.savedAt);
+      case "date-asc":
+        return new Date(a.savedAt) - new Date(b.savedAt);
+      case "roles-desc":
+        return (b.totalRoles || 0) - (a.totalRoles || 0);
+      case "roles-asc":
+        return (a.totalRoles || 0) - (b.totalRoles || 0);
+      case "name-asc":
+        return (a.companyName || "").localeCompare(b.companyName || "");
+      case "name-desc":
+        return (b.companyName || "").localeCompare(a.companyName || "");
+      default:
+        return 0;
+    }
+  });
+  
+  renderAnalysesGrid(filteredAnalyses);
 }
 
 function getSavedAnalyses() {
@@ -61,8 +166,18 @@ function getSavedAnalyses() {
 function renderAnalysesGrid(analyses) {
   elements.savedGrid.innerHTML = "";
   
-  // Sort by date, newest first
-  analyses.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+  if (analyses.length === 0) {
+    elements.savedGrid.innerHTML = `
+      <div class="saved-empty" style="grid-column: 1 / -1;">
+        <div class="saved-empty__icon">
+          <i class="fa-solid fa-search"></i>
+        </div>
+        <h3>No analyses found</h3>
+        <p>Try adjusting your search or filters.</p>
+      </div>
+    `;
+    return;
+  }
 
   analyses.forEach((analysis) => {
     const card = createAnalysisCard(analysis);

@@ -40,6 +40,36 @@
     <main class="content-area">
       <div class="saved-layout">
         
+        <!-- Search/Filter Bar -->
+        <div class="saved-search-bar" id="saved-search-bar" style="display: none;">
+          <div class="search-input-wrapper">
+            <i class="fa-solid fa-search"></i>
+            <input 
+              type="text" 
+              id="saved-search-input" 
+              class="search-input" 
+              placeholder="Search by company name, platform, or department..."
+              autocomplete="off"
+            />
+            <button class="search-clear-btn" id="search-clear-btn" style="display: none;" aria-label="Clear search">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+          <div class="saved-filters">
+            <select id="filter-platform" class="filter-select">
+              <option value="all">All Platforms</option>
+            </select>
+            <select id="filter-sort" class="filter-select">
+              <option value="date-desc">Newest First</option>
+              <option value="date-asc">Oldest First</option>
+              <option value="roles-desc">Most Roles</option>
+              <option value="roles-asc">Least Roles</option>
+              <option value="name-asc">Name (A-Z)</option>
+              <option value="name-desc">Name (Z-A)</option>
+            </select>
+          </div>
+        </div>
+        
         <!-- Empty State -->
         <div class="saved-empty" id="saved-empty">
           <div class="saved-empty__icon">

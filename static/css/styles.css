@@ -1080,9 +1080,79 @@ a:hover {
 .saved-layout {
   min-height: 400px;
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 40px;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.saved-search-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px;
+  background: var(--overview-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.search-input-wrapper i.fa-search {
+  position: absolute;
+  left: 16px;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding: 14px 48px 14px 48px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--input-bg);
+  color: var(--color-text);
+  font-size: 15px;
+  transition: all 0.3s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  background: var(--input-bg);
+}
+
+.search-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+  font-size: 16px;
+}
+
+.search-clear-btn:hover {
+  color: var(--color-text);
+  background: rgba(148, 163, 184, 0.1);
+}
+
+.saved-filters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .saved-empty {
