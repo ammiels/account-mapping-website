@@ -26,6 +26,7 @@ PLATFORM_PATTERNS: List[Tuple[str, str]] = [
     ("lever.co", "Lever"),
     ("workable.com", "Workable"),
     ("myworkdayjobs.com", "Workday"),
+    ("smartrecruiters.com", "SmartRecruiters"),
     ("indeed.com", "Indeed"),
 ]
 
@@ -686,6 +687,104 @@ def fetch_workday_jobs(search_url: str) -> List[JobRecord]:
     return jobs
 
 
+def fetch_smartrecruiters_jobs(search_url: str) -> List[JobRecord]:
+    """Fetch publicly listed SmartRecruiters openings from the provided URL."""
+    # Extract company identifier from URL
+    # Format: https://careers.smartrecruiters.com/{company}
+    parsed = urlparse(search_url)
+    path_parts = [p for p in parsed.path.split('/') if p]
+    
+    if not path_parts:
+        logging.warning("Unable to parse SmartRecruiters URL: %s", search_url)
+        return []
+    
+    company = path_parts[0]
+    
+    # Construct the API endpoint
+    api_url = f"https://api.smartrecruiters.com/v1/companies/{company}/postings"
+    
+    jobs: List[JobRecord] = []
+    offset = 0
+    limit = 100
+    
+    try:
+        # Fetch all pages
+        while True:
+            response = requests.get(
+                api_url,
+                params={"limit": limit, "offset": offset},
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": USER_AGENT
+                },
+                timeout=10,
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            job_postings = data.get("content", [])
+            total = data.get("totalFound", 0)
+            
+            if not job_postings:
+                break
+            
+            for job_data in job_postings:
+                title = (job_data.get("name") or "").strip()
+                job_id = job_data.get("id")
+                
+                if not title:
+                    continue
+                
+                # Construct full job URL
+                job_url = f"https://careers.smartrecruiters.com/{company}/{job_id}"
+                
+                # Extract location
+                location_data = job_data.get("location", {})
+                location = location_data.get("fullLocation") or location_data.get("city")
+                is_remote = location_data.get("remote", False)
+                
+                # Extract department
+                department_data = job_data.get("department", {})
+                department = department_data.get("label", "General")
+                
+                # Extract posted date
+                posted_date = job_data.get("releasedDate")
+                
+                # Normalize the data
+                seniority = normalize_seniority(title)
+                employment_type = normalize_employment_type(title.lower())
+                
+                # Check if remote based on title and location
+                location_text = (location or "").lower()
+                is_remote = is_remote or detect_remote_role(location_text, title.lower())
+                
+                jobs.append(
+                    JobRecord(
+                        title=title,
+                        department=department,
+                        location=location,
+                        seniority=seniority,
+                        employment_type=employment_type,
+                        source="SmartRecruiters",
+                        posted_date=posted_date,
+                        url=job_url,
+                        is_remote=is_remote,
+                    )
+                )
+            
+            offset += limit
+            
+            # Check if we've fetched all jobs
+            if offset >= total:
+                break
+                
+    except requests.exceptions.RequestException as exc:
+        logging.error("Error fetching SmartRecruiters jobs: %s", exc)
+        return []
+    
+    return jobs
+
+
 def fetch_jobs(search_url: str, platform: str) -> Tuple[List[JobRecord], Optional[str]]:
     """Fetch job records for a given platform, returning jobs and an info message."""
     if platform == "Greenhouse":
@@ -706,6 +805,11 @@ def fetch_jobs(search_url: str, platform: str) -> Tuple[List[JobRecord], Optiona
     if platform == "Workday":
         jobs = fetch_workday_jobs(search_url)
         message = None if jobs else "No roles found on the provided Workday page."
+        return jobs, message
+    
+    if platform == "SmartRecruiters":
+        jobs = fetch_smartrecruiters_jobs(search_url)
+        message = None if jobs else "No roles found on the provided SmartRecruiters page."
         return jobs, message
 
     placeholder = f"Support for {platform} is coming soon."
