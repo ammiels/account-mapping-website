@@ -162,18 +162,30 @@ a:hover {
 
 .sidebar__header {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: 14px;
-  padding: 4px;
+  padding: 0;
   border-radius: 8px;
-  background: rgba(20, 184, 166, 0.08);
-  border: 1px solid rgba(20, 184, 166, 0.15);
+  background: transparent;
+  border: none;
+}
+
+.sidebar__logo {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+  margin-bottom: 8px;
 }
 
 .sidebar__title-block {
   display: grid;
   gap: 4px;
-  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(20, 184, 166, 0.08);
+  border: 1px solid rgba(20, 184, 166, 0.15);
 }
 
 .sidebar__title {
